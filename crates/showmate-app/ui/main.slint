@@ -1,0 +1,119 @@
+export struct CueRow {
+    number: int,
+    name: string,
+    kind: string,
+    start: string,
+    delay: string,
+    status: string,
+    active: bool,
+    done: bool,
+}
+
+component ToolButton inherits Rectangle {
+    in property <string> text;
+    in property <color> fill: #232b3a;
+    callback clicked();
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: #3a4558;
+    background: touch.has-hover ? fill.brighter(0.15) : fill;
+    Text { text: root.text; color: white; font-size: 18px; font-weight: 600; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+export component MainWindow inherits Window {
+    title: "ShowMate";
+    preferred-width: 1100px;
+    preferred-height: 640px;
+    min-width: 800px;
+    min-height: 480px;
+    background: #0e1420;
+
+    in property <string> timecode: "00:00:00.00";
+    in property <string> next-cue: "—";
+    in property <string> next-eta: "";
+    in property <bool> paused;
+    in property <[CueRow]> rows;
+
+    callback go();
+    callback pause();
+    callback stop();
+
+    FocusScope {
+        key-pressed(event) => {
+            if (event.text == " ") { root.go(); return accept; }
+            if (event.text == "p") { root.pause(); return accept; }
+            if (event.text == Key.Escape) { root.stop(); return accept; }
+            reject
+        }
+
+        VerticalLayout {
+            padding: 16px;
+            spacing: 14px;
+
+            HorizontalLayout {
+                spacing: 12px;
+                height: 100px;
+                ToolButton { text: "▶  GO"; fill: #1c8a2e; horizontal-stretch: 2; clicked => { root.go(); } }
+                ToolButton { text: root.paused ? "▶  HERVAT" : "⏸  PAUSE"; horizontal-stretch: 1; clicked => { root.pause(); } }
+                ToolButton { text: "■  STOP"; horizontal-stretch: 1; clicked => { root.stop(); } }
+                Rectangle {
+                    horizontal-stretch: 2;
+                    border-radius: 8px; border-width: 1px; border-color: #3a4558; background: #151c2a;
+                    VerticalLayout {
+                        padding: 12px; spacing: 4px; alignment: center;
+                        Text { text: "Volgende cue"; color: #9aa6ba; font-size: 13px; }
+                        Text { text: root.next-cue; color: white; font-size: 18px; font-weight: 700; overflow: elide; }
+                        Text { text: root.next-eta; color: #9aa6ba; font-size: 13px; }
+                    }
+                }
+                Rectangle {
+                    horizontal-stretch: 2;
+                    border-radius: 8px; border-width: 1px; border-color: #3a4558; background: #151c2a;
+                    VerticalLayout {
+                        padding: 12px; alignment: center;
+                        Text { text: "Tijdcode (show)"; color: #9aa6ba; font-size: 13px; }
+                        Text { text: root.timecode; color: white; font-size: 34px; font-weight: 700; }
+                    }
+                }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+                border-radius: 8px; border-width: 1px; border-color: #2a3344; background: #111826;
+                VerticalLayout {
+                    padding: 4px;
+                    HorizontalLayout {
+                        height: 30px; padding-left: 12px; spacing: 8px;
+                        Text { text: "#"; color: #9aa6ba; width: 30px; vertical-alignment: center; }
+                        Text { text: "Cue naam"; color: #9aa6ba; horizontal-stretch: 1; vertical-alignment: center; }
+                        Text { text: "Type"; color: #9aa6ba; width: 70px; vertical-alignment: center; }
+                        Text { text: "Start"; color: #9aa6ba; width: 60px; vertical-alignment: center; }
+                        Text { text: "Delay"; color: #9aa6ba; width: 80px; vertical-alignment: center; }
+                        Text { text: "Status"; color: #9aa6ba; width: 110px; vertical-alignment: center; }
+                    }
+                    for row in root.rows: Rectangle {
+                        height: 36px;
+                        border-radius: 4px;
+                        background: row.active ? #14532d : transparent;
+                        HorizontalLayout {
+                            padding-left: 12px; spacing: 8px;
+                            Text { text: row.number; color: white; width: 30px; vertical-alignment: center; }
+                            Text { text: row.name; color: white; horizontal-stretch: 1; vertical-alignment: center; overflow: elide; }
+                            Text { text: row.kind; color: #c5cee0; width: 70px; vertical-alignment: center; }
+                            Text { text: row.start; color: #c5cee0; width: 60px; vertical-alignment: center; }
+                            Text { text: row.delay; color: #c5cee0; width: 80px; vertical-alignment: center; }
+                            Text {
+                                text: row.status;
+                                color: row.active || row.done ? #4ade80 : #c5cee0;
+                                font-weight: row.active ? 700 : 400;
+                                width: 110px; vertical-alignment: center;
+                            }
+                        }
+                    }
+                    Rectangle { }
+                }
+            }
+        }
+    }
+}

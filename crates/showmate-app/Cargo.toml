@@ -1,0 +1,20 @@
+[package]
+name = "showmate-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "showmate"
+path = "src/main.rs"
+
+[dependencies]
+showmate-core = { path = "../showmate-core" }
+slint = "1"
+
+[build-dependencies]
+slint-build = "1"
+
+[lints]
+workspace = true
