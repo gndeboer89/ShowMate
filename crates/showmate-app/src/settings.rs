@@ -5,6 +5,7 @@
 //!   "osc":  { "destinations": [{ "name": "Lighting", "host": "192.168.1.50", "port": 8000 }],
 //!             "commands":     [{ "name": "Spots op", "address": "/eos/cue/1/fire", "args": "" }] },
 //!   "midi": { "output": "loopMIDI Port" },
+//!   "language": "nl",
 //!   "video": { "fullscreen": true, "screens": [1, 2], "mpv_path": "C:\\mpv\\mpv.exe", "extra_args": [] }
 //! }
 //! ```
@@ -15,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use showmate_video::VideoConfig;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
     pub video: VideoSettings,
@@ -23,6 +24,13 @@ pub struct Settings {
     pub osc: OscSettings,
     #[serde(default)]
     pub midi: MidiSettings,
+    /// Taal van de interface: `"nl"` (standaard) of `"en"`.
+    #[serde(default = "default_language")]
+    pub language: String,
+}
+
+fn default_language() -> String {
+    "nl".into()
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -79,6 +87,17 @@ pub struct MidiSettings {
     /// Naam van de MIDI-uitgang; `None` = geen.
     #[serde(default)]
     pub output: Option<String>,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            video: VideoSettings::default(),
+            osc: OscSettings::default(),
+            midi: MidiSettings::default(),
+            language: default_language(),
+        }
+    }
 }
 
 /// Leest `settings.json` uit `dir`. Ontbreekt het bestand, dan gelden de standaardwaarden;

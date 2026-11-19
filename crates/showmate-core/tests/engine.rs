@@ -404,3 +404,32 @@ fn new_io_fields_default_in_old_showfiles() {
     assert_eq!(c.midi, MidiMessage::default());
     assert!(c.osc_address.is_empty() && c.osc_command.is_empty());
 }
+
+#[test]
+fn save_keeps_backup_and_clears_autosave() {
+    let dir = std::env::temp_dir().join(format!("showmate-bak-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("s.showmate");
+    let mut show = showmate_core::demo::demo_show();
+    show.save(&path).unwrap();
+    assert!(
+        !path.with_extension("showmate.bak").exists(),
+        "eerste keer geen backup"
+    );
+    show.name = "tweede".into();
+    show.autosave(&path).unwrap();
+    assert_eq!(recoverable_autosave(&path), Some(autosave_path(&path)));
+    show.save(&path).unwrap();
+    assert!(
+        !autosave_path(&path).exists(),
+        "autosave opgeruimd na opslaan"
+    );
+    assert_eq!(recoverable_autosave(&path), None);
+    let bak = Show::load(&dir.join("s.showmate.bak")).unwrap();
+    assert_eq!(bak.name, "Demo", "backup is de vorige versie");
+    // zonder showfile telt een autosave ook als herstelbaar
+    std::fs::remove_file(&path).unwrap();
+    show.autosave(&path).unwrap();
+    assert!(recoverable_autosave(&path).is_some());
+    std::fs::remove_dir_all(dir).unwrap();
+}

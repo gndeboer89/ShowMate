@@ -35,7 +35,7 @@ Showfile: `%APPDATA%\ShowMate\show.showmate` (override met `SHOWMATE_FILE`); zon
 ## Roadmap
 
 0. Opzet ✅ · 1. Engine ✅ · 2. GUI (inspector, bewerken) ✅ · 3. Audio ✅ · 4. Video (mpv) ✅
-5. OSC/MIDI ✅ · 6. Groep/Parallel/Loop, installer
+5. OSC/MIDI ✅ · 6. Groepen, panic/reset, ongedaan maken, auto-save, NL/EN, installer ✅
 
 ## Bewerken
 
@@ -101,3 +101,60 @@ Argumenten schrijf je als tekst: `f:0.7 5 true "tekst"`. Zonder prefix wordt het
 Overgangen (bv. spots 0 → 70% in 5 s) doet de tafel zelf: ShowMate stuurt één bericht bij de start van
 de cue. De knop **▶ Test** bij een OSC/MIDI-cue verstuurt het bericht meteen, zonder de show te starten.
 MIDI-cues ondersteunen Note On/Off, Control Change en Program Change (kanaal 1–16).
+
+## Groepen
+
+Een groep is een cue met de cues eronder als kinderen (ingesprongen in de lijst). Er zijn drie soorten:
+
+| Soort | Gedrag |
+|---|---|
+| **Groep** | kinderen na elkaar; elk kind start `delay` nadat het vorige is afgelopen |
+| **Parallel** | alle kinderen tegelijk, elk `delay` na de start van de groep |
+| **Loop** | als Groep, maar herhaalt tot STOP of tot de *duur* van de groep om is |
+
+Eén GO start de hele groep; de groep eindigt als alle kinderen klaar zijn. De Start-instelling van
+kinderen telt niet. Een `Auto`-cue direct na een groep volgt de start van de groep.
+
+- *Cue toevoegen* terwijl een groep of kind is geselecteerd: de nieuwe cue komt in de groep. Een nieuwe
+  groep komt altijd op het hoogste niveau (geen groepen in groepen).
+- ↑/↓ op een kind schuift het binnen de groep en, aan de rand, uit de groep. Op een groep verplaatst
+  het het hele blok.
+- Een groep verwijderen *heft hem op*; de kinderen blijven staan.
+
+## Sneltoetsen en veiligheid
+
+| Toets | Actie |
+|---|---|
+| `Spatie` | GO |
+| `P` | pauze / hervat |
+| `Esc` | STOP (korte fade) |
+| `Shift+Esc` | **PANIC**: geluid meteen afkappen, beelden weg |
+| `Ctrl+R` | Reset: alles stoppen en terug naar het begin |
+| `Ctrl+Z` / `Ctrl+Y` | ongedaan maken / opnieuw (ook `Ctrl+Shift+Z`) |
+| `Ctrl+D` | cue dupliceren |
+| `Ctrl+S` | opslaan |
+| `Delete` | cue verwijderen |
+| `↑` `↓` | vorige / volgende cue selecteren |
+
+- **Ongedaan maken** werkt voor alle wijzigingen aan de lijst en aan cue-eigenschappen (typen in een veld
+  telt als één stap), tot 100 stappen. Niet mogelijk zolang cues gepland staan; druk eerst op STOP.
+- **Auto-save**: elke 30 s een kopie (`<show>.autosave`) als er niet-opgeslagen wijzigingen zijn, en bij
+  afsluiten. Na een crash of afsluiten zonder opslaan wordt die kopie bij de volgende start hersteld.
+  Bij opslaan blijft de vorige versie bewaard als `<show>.bak`.
+
+## Taal
+
+Nederlands (standaard) en Engels: kies in ⚙ Instellingen. De interface gebruikt Slint's `@tr`;
+vertalingen staan in `crates/showmate-app/lang/<taal>/LC_MESSAGES/showmate-app.po` (`msgctxt "MainWindow"`).
+Foutmeldingen uit de audio-, video- en OSC-lagen zijn nog Nederlands.
+
+## Installer
+
+```
+cargo build --release -p showmate-app
+powershell -File installer\fetch-mpv.ps1        # optioneel: mpv meeleveren
+iscc /DAppVersion=0.1.0 installer\showmate.iss  # → dist\ShowMate-Setup-0.1.0.exe
+```
+
+De CI bouwt dit ook (job `installer`). Het mpv-downloadscript en de Inno Setup-stap zijn nog niet
+op een echte Windows-runner uitgeprobeerd.

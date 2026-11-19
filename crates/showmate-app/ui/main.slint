@@ -24,6 +24,8 @@ export struct CueRow {
     status: string,
     active: bool,
     done: bool,
+    indent: bool,
+    group: bool,
 }
 
 component ToolButton inherits Rectangle {
@@ -121,6 +123,8 @@ export component MainWindow inherits Window {
 
     // Soort-specifiek (OSC / MIDI / video)
     in-out property <string> insp-kind;
+    in property <bool> insp-child;
+    in-out property <int> insp-group-mode-index;
     in-out property <bool> insp-mute;
     in-out property <int> insp-dest-index;
     in-out property <int> insp-cmd-index;
@@ -145,6 +149,8 @@ export component MainWindow inherits Window {
     in-out property <int> midi-index;
     in property <string> midi-status;
     in property <string> settings-note;
+    in-out property <int> language-index;
+    callback language-selected(int);
 
     in property <bool> delay-ok: true;
     in property <bool> duration-ok: true;
@@ -167,6 +173,12 @@ export component MainWindow inherits Window {
     callback edit-duration(string);
     callback edit-looping(bool);
     callback edit-mute(bool);
+    callback edit-group-mode(int);
+    callback undo();
+    callback redo();
+    callback duplicate-cue();
+    callback panic();
+    callback reset-show();
     callback edit-osc-dest(string);
     callback edit-osc-command(string);
     callback edit-osc-address(string);
@@ -195,7 +207,16 @@ export component MainWindow inherits Window {
             if (event.modifiers.control && event.text == "s") { root.save(); return accept; }
             if (event.text == " ") { root.go(); return accept; }
             if (event.text == "p") { root.pause(); return accept; }
+            if (event.text == Key.Escape && event.modifiers.shift) { root.panic(); return accept; }
             if (event.text == Key.Escape) { root.stop(); return accept; }
+            if (event.modifiers.control && (event.text == "z" || event.text == "Z") && event.modifiers.shift) { root.redo(); return accept; }
+            if (event.modifiers.control && event.text == "z") { root.undo(); return accept; }
+            if (event.modifiers.control && event.text == "y") { root.redo(); return accept; }
+            if (event.modifiers.control && event.text == "d") { root.duplicate-cue(); return accept; }
+            if (event.modifiers.control && event.text == "r") { root.reset-show(); return accept; }
+            if (event.text == Key.Delete) { root.remove-cue(); return accept; }
+            if (event.text == Key.UpArrow) { root.select(max(0, root.selected - 1)); return accept; }
+            if (event.text == Key.DownArrow) { root.select(min(root.rows.length - 1, root.selected + 1)); return accept; }
             reject
         }
 
@@ -207,15 +228,20 @@ export component MainWindow inherits Window {
             HorizontalLayout {
                 spacing: 12px;
                 height: 92px;
-                ToolButton { text: "▶  GO"; font: 26px; fill: #1c8a2e; horizontal-stretch: 2; clicked => { root.go(); } }
-                ToolButton { text: root.paused ? "▶  HERVAT" : "⏸  PAUSE"; horizontal-stretch: 1; clicked => { root.pause(); } }
-                ToolButton { text: "■  STOP"; horizontal-stretch: 1; clicked => { root.stop(); } }
+                ToolButton { text: @tr("▶  GO"); font: 26px; fill: #1c8a2e; horizontal-stretch: 2; clicked => { root.go(); } }
+                ToolButton { text: root.paused ? @tr("▶  HERVAT") : @tr("⏸  PAUSE"); horizontal-stretch: 1; clicked => { root.pause(); } }
+                ToolButton { text: @tr("■  STOP"); horizontal-stretch: 1; clicked => { root.stop(); } }
+                VerticalLayout {
+                    width: 120px; spacing: 8px;
+                    ToolButton { text: @tr("PANIC"); font: 14px; fill: #7f1d1d; clicked => { root.panic(); } }
+                    ToolButton { text: @tr("⏮ Reset"); font: 14px; clicked => { root.reset-show(); } }
+                }
                 Rectangle {
                     horizontal-stretch: 2;
                     border-radius: 8px; border-width: 1px; border-color: #3a4558; background: #151c2a;
                     VerticalLayout {
                         padding: 12px; spacing: 4px; alignment: center;
-                        Text { text: "Volgende cue"; color: #9aa6ba; font-size: 13px; }
+                        Text { text: @tr("Volgende cue"); color: #9aa6ba; font-size: 13px; }
                         Text { text: root.next-cue; color: white; font-size: 18px; font-weight: 700; overflow: elide; }
                         Text { text: root.next-eta; color: #9aa6ba; font-size: 13px; }
                     }
@@ -225,7 +251,7 @@ export component MainWindow inherits Window {
                     border-radius: 8px; border-width: 1px; border-color: #3a4558; background: #151c2a;
                     VerticalLayout {
                         padding: 12px; alignment: center;
-                        Text { text: "Tijdcode (show)"; color: #9aa6ba; font-size: 13px; }
+                        Text { text: @tr("Tijdcode (show)"); color: #9aa6ba; font-size: 13px; }
                         Text { text: root.timecode; color: white; font-size: 34px; font-weight: 700; }
                     }
                 }
@@ -235,13 +261,17 @@ export component MainWindow inherits Window {
             HorizontalLayout {
                 spacing: 8px;
                 height: 36px;
-                ToolButton { text: "+ Audio"; width: 92px; enabled: !root.locked; clicked => { root.add-cue("audio"); } }
-                ToolButton { text: "+ Video"; width: 92px; enabled: !root.locked; clicked => { root.add-cue("video"); } }
-                ToolButton { text: "+ OSC"; width: 80px; enabled: !root.locked; clicked => { root.add-cue("osc"); } }
-                ToolButton { text: "+ MIDI"; width: 80px; enabled: !root.locked; clicked => { root.add-cue("midi"); } }
-                Text { text: root.message; color: #fbbf24; font-size: 13px; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
-                ToolButton { text: "⚙ Instellingen"; width: 140px; clicked => { root.open-settings(); } }
-                ToolButton { text: "💾 Opslaan"; width: 110px; clicked => { root.save(); } }
+                ToolButton { text: @tr("+ Audio"); width: 78px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("audio"); } }
+                ToolButton { text: @tr("+ Video"); width: 78px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("video"); } }
+                ToolButton { text: @tr("+ OSC"); width: 70px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("osc"); } }
+                ToolButton { text: @tr("+ MIDI"); width: 72px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("midi"); } }
+                Rectangle { width: 10px; }
+                ToolButton { text: @tr("Groep"); width: 72px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("group"); } }
+                ToolButton { text: @tr("Parallel"); width: 82px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("parallel"); } }
+                ToolButton { text: @tr("Loop"); width: 66px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("loop"); } }
+                Rectangle { horizontal-stretch: 1; }
+                ToolButton { text: @tr("⚙ Instellingen"); width: 136px; clicked => { root.open-settings(); } }
+                ToolButton { text: @tr("💾 Opslaan"); width: 110px; clicked => { root.save(); } }
                 ToolButton { text: "↑"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-up(); } }
                 ToolButton { text: "↓"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-down(); } }
                 ToolButton { text: "🗑"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.remove-cue(); } }
@@ -257,14 +287,14 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         height: 30px; padding-left: 12px; padding-right: 12px; spacing: 8px;
                         HeaderCell { text: "#"; width: 28px; }
-                        HeaderCell { text: "Cue naam"; horizontal-stretch: 1; }
-                        HeaderCell { text: "Type"; width: 60px; }
-                        HeaderCell { text: "Media"; width: 170px; }
-                        HeaderCell { text: "Start"; width: 54px; }
-                        HeaderCell { text: "Delay"; width: 74px; }
-                        HeaderCell { text: "Duur"; width: 64px; }
-                        HeaderCell { text: "Output"; width: 130px; }
-                        HeaderCell { text: "Status"; width: 90px; }
+                        HeaderCell { text: @tr("Cue naam"); horizontal-stretch: 1; }
+                        HeaderCell { text: @tr("Type"); width: 60px; }
+                        HeaderCell { text: @tr("Media"); width: 170px; }
+                        HeaderCell { text: @tr("Start"); width: 54px; }
+                        HeaderCell { text: @tr("Delay"); width: 74px; }
+                        HeaderCell { text: @tr("Duur"); width: 64px; }
+                        HeaderCell { text: @tr("Output"); width: 130px; }
+                        HeaderCell { text: @tr("Status"); width: 90px; }
                     }
                     ScrollView {
                         VerticalLayout {
@@ -275,7 +305,11 @@ export component MainWindow inherits Window {
                                 HorizontalLayout {
                                     padding-left: 12px; padding-right: 12px; spacing: 8px;
                                     Cell { text: row.number; width: 28px; }
-                                    Cell { text: row.name; horizontal-stretch: 1; }
+                                    Rectangle {
+                                        horizontal-stretch: 1;
+                                        Cell { x: row.indent ? 22px : 0px; width: parent.width - self.x; height: parent.height;
+                                            text: row.name; font-weight: row.group ? 700 : 400; }
+                                    }
                                     Cell { text: row.kind; width: 60px; color: #c5cee0; }
                                     Cell { text: row.media; width: 170px; color: #c5cee0; }
                                     Cell { text: row.start; width: 54px; color: #c5cee0; }
@@ -304,7 +338,7 @@ export component MainWindow inherits Window {
                         padding: 10px; spacing: 14px;
                         VerticalLayout {
                             width: 200px; spacing: 4px;
-                            Text { text: root.wave-title == "" ? "Audio" : root.wave-title; color: white; font-size: 14px; font-weight: 700; overflow: elide; }
+                            Text { text: root.wave-title == "" ? @tr("Audio") : root.wave-title; color: white; font-size: 14px; font-weight: 700; overflow: elide; }
                             Text { text: root.wave-time; color: #c5cee0; font-size: 13px; overflow: elide; }
                             Text { text: root.audio-info; color: #6b778c; font-size: 11px; overflow: elide; }
                         }
@@ -347,13 +381,13 @@ export component MainWindow inherits Window {
                         padding: 8px; spacing: 4px;
                         HorizontalLayout {
                             spacing: 8px; height: 18px;
-                            Text { text: root.video-title == "" ? "Video" : root.video-title; color: white; font-size: 13px; font-weight: 700; overflow: elide; horizontal-stretch: 1; }
+                            Text { text: root.video-title == "" ? @tr("Video") : root.video-title; color: white; font-size: 13px; font-weight: 700; overflow: elide; horizontal-stretch: 1; }
                             Text { text: root.video-time; color: #c5cee0; font-size: 12px; }
                         }
                         Rectangle {
                             vertical-stretch: 1; background: #05070c; border-radius: 4px; clip: true;
                             Image { source: root.video-preview; image-fit: contain; width: parent.width; height: parent.height; visible: root.video-has-preview; }
-                            Text { text: root.video-has-preview ? "" : (root.video-info != "" ? root.video-info : "geen video actief"); wrap: word-wrap; width: parent.width - 16px; horizontal-alignment: center; color: #6b778c; font-size: 12px; }
+                            Text { text: root.video-has-preview ? "" : (root.video-info != "" ? root.video-info : @tr("geen video actief")); wrap: word-wrap; width: parent.width - 16px; horizontal-alignment: center; color: #6b778c; font-size: 12px; }
                         }
                     }
                 }
@@ -369,11 +403,11 @@ export component MainWindow inherits Window {
                         height: 26px; spacing: 8px;
                         Text {
                             horizontal-stretch: 1; vertical-alignment: center;
-                            text: root.has-selection ? root.insp-title : "Selecteer een cue om te bewerken";
+                            text: root.has-selection ? root.insp-title : @tr("Selecteer een cue om te bewerken");
                             color: white; font-size: 16px; font-weight: 700; overflow: elide;
                         }
                         if root.has-selection && (root.insp-kind == "osc" || root.insp-kind == "midi"): ToolButton {
-                            text: "▶ Test"; width: 90px; font: 13px; clicked => { root.test-cue(); }
+                            text: @tr("▶ Test"); width: 90px; font: 13px; clicked => { root.test-cue(); }
                         }
                     }
                     HorizontalLayout {
@@ -381,65 +415,69 @@ export component MainWindow inherits Window {
                         // Kolom 1
                         VerticalLayout {
                             horizontal-stretch: 3; spacing: 6px; alignment: start;
-                            Field { label: "Naam";
+                            Field { label: @tr("Naam");
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-name; edited(t) => { root.edit-name(t); } } }
-                            if root.insp-kind != "osc" && root.insp-kind != "midi": Field { label: "Media / doel";
+                            if root.insp-kind != "osc" && root.insp-kind != "midi" && root.insp-kind != "group": Field { label: @tr("Media / doel");
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-media; edited(t) => { root.edit-media(t); } } }
-                            if root.insp-kind != "osc" && root.insp-kind != "midi": Field { label: "Output";
+                            if root.insp-kind != "osc" && root.insp-kind != "midi" && root.insp-kind != "group": Field { label: @tr("Output");
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-output; edited(t) => { root.edit-output(t); } } }
-                            if root.insp-kind == "osc": Field { label: root.insp-dest-index < 0 ? "Bestemming — onbekend" : "Bestemming"; valid: root.insp-dest-index >= 0;
+                            if root.insp-kind == "group": Field { label: @tr("Soort");
+                                ComboBox { model: [@tr("Groep (na elkaar)"), @tr("Parallel (tegelijk)"), @tr("Loop (herhalen)")]; current-index <=> root.insp-group-mode-index;
+                                    selected(v) => { root.edit-group-mode(self.current-index); } } }
+                            if root.insp-kind == "osc": Field { label: root.insp-dest-index < 0 ? @tr("Bestemming — onbekend") : @tr("Bestemming"); valid: root.insp-dest-index >= 0;
                                 ComboBox { model: root.dest-names; current-index <=> root.insp-dest-index; selected(v) => { root.edit-osc-dest(v); } } }
-                            if root.insp-kind == "osc": Field { label: root.insp-cmd-index < 0 ? "Commando — onbekend" : "Commando (uit instellingen)"; valid: root.insp-cmd-index >= 0;
+                            if root.insp-kind == "osc": Field { label: root.insp-cmd-index < 0 ? @tr("Commando — onbekend") : @tr("Commando (uit instellingen)"); valid: root.insp-cmd-index >= 0;
                                 ComboBox { model: root.cmd-names; current-index <=> root.insp-cmd-index; selected(v) => { root.edit-osc-command(v); } } }
-                            if root.insp-kind == "midi": Field { label: "Type";
+                            if root.insp-kind == "midi": Field { label: @tr("Type");
                                 ComboBox { model: ["Note On", "Note Off", "Control Change", "Program Change"]; current-index <=> root.insp-midi-kind-index;
                                     selected(v) => { root.edit-midi-kind(self.current-index); } } }
-                            if root.insp-kind == "midi": Field { label: root.midi-ok ? "Kanaal (1–16)" : "Kanaal / data — ongeldig"; valid: root.midi-ok;
+                            if root.insp-kind == "midi": Field { label: root.midi-ok ? @tr("Kanaal (1–16)") : @tr("Kanaal / data — ongeldig"); valid: root.midi-ok;
                                 LineEdit { text <=> root.insp-midi-channel; input-type: number; edited(t) => { root.edit-midi-num(0, t); } } }
                         }
                         // Kolom 2
                         VerticalLayout {
                             horizontal-stretch: 2; spacing: 6px; alignment: start;
-                            Field { label: "Start";
+                            if !root.insp-child: Field { label: @tr("Start");
                                 ComboBox { enabled: root.has-selection; model: ["GO", "Auto"]; current-index <=> root.insp-start-index;
                                     selected(v) => { root.edit-start(v == "Auto"); } } }
-                            Field { label: root.delay-ok ? "Delay (s of mm:ss)" : "Delay — ongeldig"; valid: root.delay-ok;
+                            Field { label: root.delay-ok ? @tr("Delay (s of mm:ss)") : @tr("Delay — ongeldig"); valid: root.delay-ok;
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-delay; edited(t) => { root.edit-delay(t); } } }
-                            if root.insp-kind != "osc" && root.insp-kind != "midi": Field { label: root.duration-ok ? "Duur (leeg = onbepaald)" : "Duur — ongeldig"; valid: root.duration-ok;
+                            if root.insp-kind != "osc" && root.insp-kind != "midi": Field { label: root.duration-ok ? (root.insp-kind == "group" ? @tr("Duur (maximum, leeg = tot klaar)") : @tr("Duur (leeg = onbepaald)")) : @tr("Duur — ongeldig"); valid: root.duration-ok;
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-duration; edited(t) => { root.edit-duration(t); } } }
                         }
                         // Kolom 3
                         VerticalLayout {
                             horizontal-stretch: 2; spacing: 6px; alignment: start;
-                            if root.insp-kind == "audio" || root.insp-kind == "video": Field { label: root.volume-ok ? "Volume (dB)" : "Volume — ongeldig (−60…+12)"; valid: root.volume-ok;
+                            if root.insp-kind == "audio" || root.insp-kind == "video": Field { label: root.volume-ok ? @tr("Volume (dB)") : @tr("Volume — ongeldig (−60…+12)"); valid: root.volume-ok;
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-volume; placeholder-text: "0"; edited(t) => { root.edit-volume(t); } } }
-                            if root.insp-kind == "audio" || root.insp-kind == "video": Field { label: root.fade-in-ok ? "Fade in (s)" : "Fade in — ongeldig"; valid: root.fade-in-ok;
+                            if root.insp-kind == "audio" || root.insp-kind == "video": Field { label: root.fade-in-ok ? @tr("Fade in (s)") : @tr("Fade in — ongeldig"); valid: root.fade-in-ok;
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-fade-in; edited(t) => { root.edit-fade-in(t); } } }
-                            if root.insp-kind == "audio" || root.insp-kind == "video": Field { label: root.fade-out-ok ? "Fade out (s)" : "Fade out — ongeldig"; valid: root.fade-out-ok;
+                            if root.insp-kind == "audio" || root.insp-kind == "video": Field { label: root.fade-out-ok ? @tr("Fade out (s)") : @tr("Fade out — ongeldig"); valid: root.fade-out-ok;
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-fade-out; edited(t) => { root.edit-fade-out(t); } } }
-                            if root.insp-kind == "osc": Field { label: "OSC-adres";
+                            if root.insp-kind == "osc": Field { label: @tr("OSC-adres");
                                 LineEdit { enabled: root.insp-osc-custom; text <=> root.insp-osc-address; placeholder-text: "/pad/naar/iets"; edited(t) => { root.edit-osc-address(t); } } }
-                            if root.insp-kind == "osc": Field { label: root.osc-args-error == "" ? "Argumenten (bv. f:0.7 5 true)" : "Argumenten — " + root.osc-args-error; valid: root.osc-args-error == "";
+                            if root.insp-kind == "osc": Field { label: root.osc-args-error == "" ? @tr("Argumenten (bv. f:0.7 5 true)") : @tr("Argumenten — ") + root.osc-args-error; valid: root.osc-args-error == "";
                                 LineEdit { enabled: root.insp-osc-custom; text <=> root.insp-osc-args; edited(t) => { root.edit-osc-args(t); } } }
-                            if root.insp-kind == "osc": Text { text: root.insp-osc-preview == "" ? "" : "Verstuurt: " + root.insp-osc-preview; color: #6b778c; font-size: 11px; overflow: elide; }
-                            if root.insp-kind == "midi": Field { label: root.insp-midi-kind-index == 0 || root.insp-midi-kind-index == 1 ? "Noot (0–127)" : (root.insp-midi-kind-index == 2 ? "Controller (0–127)" : "Programma (0–127)");
+                            if root.insp-kind == "osc": Text { text: root.insp-osc-preview == "" ? "" : @tr("Verstuurt: ") + root.insp-osc-preview; color: #6b778c; font-size: 11px; overflow: elide; }
+                            if root.insp-kind == "midi": Field { label: root.insp-midi-kind-index == 0 || root.insp-midi-kind-index == 1 ? @tr("Noot (0–127)") : (root.insp-midi-kind-index == 2 ? @tr("Controller (0–127)") : @tr("Programma (0–127)"));
                                 LineEdit { text <=> root.insp-midi-data1; input-type: number; edited(t) => { root.edit-midi-num(1, t); } } }
-                            if root.insp-kind == "midi" && root.insp-midi-kind-index != 3: Field { label: root.insp-midi-kind-index == 2 ? "Waarde (0–127)" : "Snelheid (0–127)";
+                            if root.insp-kind == "midi" && root.insp-midi-kind-index != 3: Field { label: root.insp-midi-kind-index == 2 ? @tr("Waarde (0–127)") : @tr("Snelheid (0–127)");
                                 LineEdit { text <=> root.insp-midi-data2; input-type: number; edited(t) => { root.edit-midi-num(2, t); } } }
                         }
                         // Kolom 4
                         VerticalLayout {
                             horizontal-stretch: 3; spacing: 6px; alignment: start;
-                            if root.insp-kind == "audio" || root.insp-kind == "video": CheckBox { enabled: root.has-selection; text: "Herhaal (loop)"; checked <=> root.insp-looping;
+                            if root.insp-kind == "audio" || root.insp-kind == "video": CheckBox { enabled: root.has-selection; text: @tr("Herhaal (loop)"); checked <=> root.insp-looping;
                                 toggled => { root.edit-looping(self.checked); } }
-                            if root.insp-kind == "video": CheckBox { enabled: root.has-selection; text: "Geluid van video dempen"; checked <=> root.insp-mute;
+                            if root.insp-kind == "video": CheckBox { enabled: root.has-selection; text: @tr("Geluid van video dempen"); checked <=> root.insp-mute;
                                 toggled => { root.edit-mute(self.checked); } }
-                            Field { label: "Notities";
+                            Field { label: @tr("Notities");
                                 TextEdit { min-height: 100px; enabled: root.has-selection; text <=> root.insp-notes; edited(t) => { root.edit-notes(t); } } }
                         }
                     }
                 }
             }
+            Text { height: 18px; text: root.message; color: #fbbf24; font-size: 13px; vertical-alignment: center; overflow: elide; }
         }
     }
 
@@ -453,16 +491,20 @@ export component MainWindow inherits Window {
             border-radius: 10px; border-width: 1px; border-color: #3a4558; background: #111826;
             VerticalLayout {
                 padding: 18px; spacing: 10px;
-                Text { text: "Instellingen"; color: white; font-size: 20px; font-weight: 700; }
+                Text { text: @tr("Instellingen"); color: white; font-size: 20px; font-weight: 700; }
                 ScrollView {
                     vertical-stretch: 1;
                     VerticalLayout {
                         spacing: 8px; alignment: start;
-                        Text { text: "OSC-bestemmingen (bv. lichttafel)"; color: #c5cee0; font-size: 15px; font-weight: 700; }
+                        Text { text: "Taal / Language"; color: #c5cee0; font-size: 15px; font-weight: 700; }
+                        HorizontalLayout { alignment: start; height: 34px;
+                            ComboBox { width: 220px; model: ["Nederlands", "English"]; current-index <=> root.language-index; selected(v) => { root.language-selected(self.current-index); } } }
+
+                        Text { text: @tr("OSC-bestemmingen (bv. lichttafel)"); color: #c5cee0; font-size: 15px; font-weight: 700; }
                         HorizontalLayout { spacing: 8px; padding-right: 48px; height: 22px;
-                            HeaderCell { text: "Naam"; width: 180px; }
-                            HeaderCell { text: "IP-adres of hostnaam"; horizontal-stretch: 1; }
-                            HeaderCell { text: "Poort"; width: 90px; } }
+                            HeaderCell { text: @tr("Naam"); width: 180px; }
+                            HeaderCell { text: @tr("IP-adres of hostnaam"); horizontal-stretch: 1; }
+                            HeaderCell { text: @tr("Poort"); width: 90px; } }
                         for d[i] in root.dests: HorizontalLayout {
                             spacing: 8px; height: 34px;
                             LineEdit { width: 180px; text: d.name; edited(t) => { root.dest-edited(i, 0, t); } }
@@ -470,13 +512,13 @@ export component MainWindow inherits Window {
                             LineEdit { width: 90px; text: d.port; input-type: number; edited(t) => { root.dest-edited(i, 2, t); } }
                             ToolButton { width: 40px; text: "✕"; font: 14px; clicked => { root.dest-remove(i); } }
                         }
-                        HorizontalLayout { alignment: start; ToolButton { text: "+ Bestemming"; width: 150px; height: 32px; font: 13px; clicked => { root.dest-add(); } } }
+                        HorizontalLayout { alignment: start; ToolButton { text: @tr("+ Bestemming"); width: 150px; height: 32px; font: 13px; clicked => { root.dest-add(); } } }
 
-                        Text { text: "OSC-commando's (adres en argumenten, te kiezen per cue)"; color: #c5cee0; font-size: 15px; font-weight: 700; }
+                        Text { text: @tr("OSC-commando's (adres en argumenten, te kiezen per cue)"); color: #c5cee0; font-size: 15px; font-weight: 700; }
                         HorizontalLayout { spacing: 8px; padding-right: 48px; height: 22px;
-                            HeaderCell { text: "Naam"; width: 180px; }
-                            HeaderCell { text: "OSC-adres"; horizontal-stretch: 1; }
-                            HeaderCell { text: "Argumenten"; width: 200px; } }
+                            HeaderCell { text: @tr("Naam"); width: 180px; }
+                            HeaderCell { text: @tr("OSC-adres"); horizontal-stretch: 1; }
+                            HeaderCell { text: @tr("Argumenten"); width: 200px; } }
                         for c[i] in root.cmds: HorizontalLayout {
                             spacing: 8px; height: 34px;
                             LineEdit { width: 180px; text: c.name; edited(t) => { root.cmd-edited(i, 0, t); } }
@@ -484,12 +526,12 @@ export component MainWindow inherits Window {
                             LineEdit { width: 200px; text: c.args; placeholder-text: "f:0.7"; edited(t) => { root.cmd-edited(i, 2, t); } }
                             ToolButton { width: 40px; text: "✕"; font: 14px; clicked => { root.cmd-remove(i); } }
                         }
-                        HorizontalLayout { alignment: start; ToolButton { text: "+ Commando"; width: 150px; height: 32px; font: 13px; clicked => { root.cmd-add(); } } }
+                        HorizontalLayout { alignment: start; ToolButton { text: @tr("+ Commando"); width: 150px; height: 32px; font: 13px; clicked => { root.cmd-add(); } } }
 
-                        Text { text: "MIDI-uitgang"; color: #c5cee0; font-size: 15px; font-weight: 700; }
+                        Text { text: @tr("MIDI-uitgang"); color: #c5cee0; font-size: 15px; font-weight: 700; }
                         HorizontalLayout { spacing: 8px; height: 34px;
                             ComboBox { width: 320px; model: root.midi-ports; current-index <=> root.midi-index; selected(v) => { root.midi-selected(v); } }
-                            ToolButton { width: 110px; text: "Vernieuwen"; font: 13px; clicked => { root.midi-refresh(); } }
+                            ToolButton { width: 110px; text: @tr("Vernieuwen"); font: 13px; clicked => { root.midi-refresh(); } }
                             Text { text: root.midi-status; color: #9aa6ba; font-size: 13px; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; }
                         }
                     }
@@ -497,7 +539,7 @@ export component MainWindow inherits Window {
                 HorizontalLayout {
                     spacing: 12px; height: 38px;
                     Text { text: root.settings-note; color: #fbbf24; font-size: 13px; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
-                    ToolButton { text: "Opslaan en sluiten"; width: 190px; fill: #1c8a2e; clicked => { root.close-settings(); } }
+                    ToolButton { text: @tr("Opslaan en sluiten"); width: 190px; fill: #1c8a2e; clicked => { root.close-settings(); } }
                 }
             }
         }

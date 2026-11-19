@@ -1,6 +1,6 @@
 //! OSC, MIDI en het instellingenvenster.
 
-use super::{AppState, kind_label};
+use super::{AppState, kind_key};
 use crate::settings::{self, OscCommand, OscDestination};
 use crate::{CommandRow, DestRow, MainWindow};
 use showmate_core::{Cue, CueKind, MidiKind};
@@ -76,6 +76,7 @@ impl AppState {
                 let port = self.midi.as_ref().map_or("MIDI", |p| p.name());
                 Some((media, port.to_string()))
             }
+            CueKind::Group => Some((format!("{} cues", cue.span), String::new())),
             _ => None,
         }
     }
@@ -92,7 +93,13 @@ impl AppState {
             .iter()
             .find(|c| c.name == cue.osc_command)
             .map(|c| (c.address.clone(), c.args.clone()))
-            .ok_or_else(|| format!("commando '{}' bestaat niet (meer)", cue.osc_command))
+            .ok_or_else(|| {
+                t!(
+                    "commando '{}' bestaat niet (meer)",
+                    "command '{}' no longer exists",
+                    cue.osc_command
+                )
+            })
     }
 
     /// Verstuurt het OSC- of MIDI-bericht van `cue`.
@@ -102,17 +109,28 @@ impl AppState {
                 let (address, args_text) = self.osc_message(cue)?;
                 let dest = self.effective_destination(cue).cloned().ok_or_else(|| {
                     if cue.output.trim().is_empty() {
-                        "geen OSC-bestemming ingesteld (⚙ Instellingen)".to_string()
+                        t!(
+                            "geen OSC-bestemming ingesteld (⚙ Instellingen)",
+                            "no OSC destination configured (⚙ Settings)"
+                        )
                     } else {
-                        format!("OSC-bestemming '{}' bestaat niet", cue.output)
+                        t!(
+                            "OSC-bestemming '{}' bestaat niet",
+                            "OSC destination '{}' does not exist",
+                            cue.output
+                        )
                     }
                 })?;
-                let args = parse_args(&args_text).map_err(|e| format!("argumenten: {e}"))?;
+                let args =
+                    parse_args(&args_text).map_err(|e| t!("argumenten: {e}", "arguments: {e}"))?;
                 self.osc.send(&dest.host, dest.port, &address, args)
             }
             CueKind::Midi => match self.midi.as_mut() {
                 Some(m) => m.send(&cue.midi),
-                None => Err("geen MIDI-uitgang gekozen (⚙ Instellingen)".into()),
+                None => Err(t!(
+                    "geen MIDI-uitgang gekozen (⚙ Instellingen)",
+                    "no MIDI output selected (⚙ Settings)"
+                )),
             },
             _ => Ok(()),
         }
@@ -123,7 +141,7 @@ impl AppState {
         let Some(i) = self.selected else { return };
         let cue = self.engine.show().cues[i].clone();
         self.message = match self.fire_io(&cue) {
-            Ok(()) => format!("Test verstuurd: cue {}", i + 1),
+            Ok(()) => t!("Test verstuurd: cue {}", "Test sent: cue {}", i + 1),
             Err(e) => format!("Cue {}: {e}", i + 1),
         };
     }
@@ -186,6 +204,22 @@ impl AppState {
 
     // ---- instellingenvenster -------------------------------------------------------
 
+    /// Zet taal van Rust-teksten en UI volgens de instellingen.
+    pub fn apply_language(&self) {
+        let english = self.settings.language == "en";
+        crate::i18n::set_english(english);
+        if let Err(e) = slint::select_bundled_translation(if english { "en" } else { "nl" }) {
+            eprintln!("vertaling: {e}");
+        }
+    }
+
+    pub fn set_language(&mut self, index: i32) {
+        self.settings.language = if index == 1 { "en" } else { "nl" }.into();
+        self.apply_language();
+        self.fill_settings = true;
+        self.fill_inspector = true;
+    }
+
     pub fn open_settings(&mut self) {
         self.settings_open = true;
         self.settings_note.clear();
@@ -199,9 +233,18 @@ impl AppState {
         self.connect_midi();
         self.settings_note.clear();
         self.message = match settings::save(&self.settings_dir, &self.settings) {
-            Ok(()) if self.midi_status.is_empty() => "Instellingen opgeslagen".to_string(),
-            Ok(()) => format!("Instellingen opgeslagen; {}", self.midi_status),
-            Err(e) => format!("Instellingen opslaan mislukt: {e}"),
+            Ok(()) if self.midi_status.is_empty() => {
+                t!("Instellingen opgeslagen", "Settings saved")
+            }
+            Ok(()) => t!(
+                "Instellingen opgeslagen; {}",
+                "Settings saved; {}",
+                self.midi_status
+            ),
+            Err(e) => t!(
+                "Instellingen opslaan mislukt: {e}",
+                "Saving settings failed: {e}"
+            ),
         };
         self.fill_settings = true;
         self.fill_inspector = true;
@@ -255,7 +298,12 @@ impl AppState {
                     self.settings.osc.destinations[i].port = p;
                     self.settings_note.clear();
                 }
-                _ => self.settings_note = "Poort moet een getal van 1 t/m 65535 zijn".into(),
+                _ => {
+                    self.settings_note = t!(
+                        "Poort moet een getal van 1 t/m 65535 zijn",
+                        "Port must be a number from 1 to 65535"
+                    )
+                }
             },
         }
         self.fill_names = true;
@@ -268,12 +316,12 @@ impl AppState {
             .osc
             .destinations
             .iter()
-            .any(|d| d.name == format!("Bestemming {n}"))
+            .any(|d| d.name == t!("Bestemming {n}", "Destination {n}"))
         {
             n += 1;
         }
         self.settings.osc.destinations.push(OscDestination {
-            name: format!("Bestemming {n}"),
+            name: t!("Bestemming {n}", "Destination {n}"),
             host: "127.0.0.1".into(),
             port: 8000,
         });
@@ -308,7 +356,7 @@ impl AppState {
                 self.settings.osc.commands[i].args = text.to_string();
                 self.settings_note = match parse_args(text) {
                     Ok(_) => String::new(),
-                    Err(e) => format!("Argumenten: {e}"),
+                    Err(e) => t!("Argumenten: {e}", "Arguments: {e}"),
                 };
             }
         }
@@ -322,12 +370,12 @@ impl AppState {
             .osc
             .commands
             .iter()
-            .any(|c| c.name == format!("Commando {n}"))
+            .any(|c| c.name == t!("Commando {n}", "Command {n}"))
         {
             n += 1;
         }
         self.settings.osc.commands.push(OscCommand {
-            name: format!("Commando {n}"),
+            name: t!("Commando {n}", "Command {n}"),
             address: "/".into(),
             args: String::new(),
         });
@@ -369,6 +417,7 @@ impl AppState {
     pub(super) fn fill_settings_ui(&self, ui: &MainWindow, rebuild_rows: bool) {
         let s = &self.settings;
         ui.set_settings_open(self.settings_open);
+        ui.set_language_index(i32::from(self.settings.language == "en"));
         ui.set_settings_note(self.settings_note.as_str().into());
         ui.set_dest_names(strings(s.osc.destinations.iter().map(|d| d.name.clone())));
         ui.set_cmd_names(strings(
@@ -386,11 +435,15 @@ impl AppState {
         ui.set_midi_ports(strings(ports));
         ui.set_midi_status(
             if !self.midi_list_error.is_empty() {
-                format!("MIDI niet beschikbaar: {}", self.midi_list_error)
+                t!(
+                    "MIDI niet beschikbaar: {}",
+                    "MIDI not available: {}",
+                    self.midi_list_error
+                )
             } else if !self.midi_status.is_empty() {
                 self.midi_status.clone()
             } else if self.midi.is_some() {
-                "verbonden".to_string()
+                t!("verbonden", "connected")
             } else {
                 String::new()
             }
@@ -426,7 +479,16 @@ impl AppState {
 
     /// OSC/MIDI-velden van de inspector.
     pub(super) fn fill_io_inspector(&self, ui: &MainWindow, cue: &Cue) {
-        ui.set_insp_kind(kind_label(cue.kind).to_lowercase().into());
+        ui.set_insp_kind(kind_key(cue.kind).into());
+        ui.set_insp_child(
+            self.selected
+                .is_some_and(|i| self.engine.show().is_child(i)),
+        );
+        ui.set_insp_group_mode_index(match cue.group_mode {
+            showmate_core::GroupMode::Sequence => 0,
+            showmate_core::GroupMode::Parallel => 1,
+            showmate_core::GroupMode::Loop => 2,
+        });
         ui.set_insp_mute(cue.mute_audio);
         let dests = &self.settings.osc.destinations;
         let dest_index = if cue.output.trim().is_empty() {

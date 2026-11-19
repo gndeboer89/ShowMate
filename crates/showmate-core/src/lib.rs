@@ -12,7 +12,7 @@ pub mod show;
 pub mod timecode;
 
 pub use clock::{Clock, ManualClock, SystemClock};
-pub use cue::{Cue, CueId, CueKind, MidiKind, MidiMessage, StartMode};
+pub use cue::{Cue, CueId, CueKind, GroupMode, MidiKind, MidiMessage, StartMode};
 pub use engine::{CueState, EditError, Engine, Event, NextCue};
-pub use show::{Show, ShowError};
+pub use show::{Show, ShowError, autosave_path, recoverable_autosave};
 pub use timecode::{format_delay, format_duration, format_timecode, parse_db, parse_duration};

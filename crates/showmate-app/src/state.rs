@@ -1,15 +1,18 @@
 //! UI-staat naast de engine: selectie, bestandspad, rij-model en inspector-vulling.
 
 mod io;
+mod workflow;
 
+use crate::i18n::tr;
 use crate::settings::Settings;
 use crate::{CueRow, MainWindow};
 use showmate_audio::{
     AudioClip, AudioOutput, ClipCache, ClipStatus, VoiceParams, parse_output_pair,
 };
 use showmate_core::{
-    Cue, CueId, CueKind, CueState, EditError, Engine, Event, Show, StartMode, SystemClock,
-    demo::demo_show, format_delay, format_duration, format_timecode, parse_db, parse_duration,
+    Cue, CueId, CueKind, CueState, EditError, Engine, Event, GroupMode, Show, StartMode,
+    SystemClock, demo::demo_show, format_delay, format_duration, format_timecode, parse_db,
+    parse_duration,
 };
 use showmate_io::{MidiOut, OscSender};
 use showmate_video::{VideoAudio, VideoEvent, VideoOutput, parse_displays};
@@ -18,7 +21,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const FPS: u32 = 25;
 
@@ -60,6 +63,10 @@ pub struct AppState {
     /// Instellingenlijsten en keuzelijsten opnieuw vullen (met/zonder rijen te vervangen).
     fill_settings: bool,
     fill_names: bool,
+    undo: Vec<Vec<Cue>>,
+    redo: Vec<Vec<Cue>>,
+    last_edit: Option<(CueId, Instant)>,
+    last_autosave: Instant,
 }
 
 /// Fallback-samplerate voor de cache als er geen audio-apparaat is.
@@ -82,15 +89,37 @@ fn kind_label(kind: CueKind) -> &'static str {
         CueKind::Video => "Video",
         CueKind::Osc => "OSC",
         CueKind::Midi => "MIDI",
+        CueKind::Group => tr("Groep", "Group"),
+    }
+}
+
+/// Typenaam voor de lijst: groepen tonen hun soort (Groep / Parallel / Loop).
+fn type_label(cue: &Cue) -> &'static str {
+    match (cue.kind, cue.group_mode) {
+        (CueKind::Group, GroupMode::Sequence) => tr("Groep", "Group"),
+        (CueKind::Group, GroupMode::Parallel) => "Parallel",
+        (CueKind::Group, GroupMode::Loop) => "Loop",
+        (kind, _) => kind_label(kind),
+    }
+}
+
+/// Vaste sleutel per soort voor de UI-logica (los van de weergavetaal).
+fn kind_key(kind: CueKind) -> &'static str {
+    match kind {
+        CueKind::Audio => "audio",
+        CueKind::Video => "video",
+        CueKind::Osc => "osc",
+        CueKind::Midi => "midi",
+        CueKind::Group => "group",
     }
 }
 
 fn status_label(state: CueState) -> &'static str {
     match state {
-        CueState::Waiting | CueState::Scheduled { .. } => "Wachtend",
-        CueState::Active { .. } => "Actief",
-        CueState::Finished => "Gespeeld",
-        CueState::Stopped => "Gestopt",
+        CueState::Waiting | CueState::Scheduled { .. } => tr("Wachtend", "Waiting"),
+        CueState::Active { .. } => tr("Actief", "Active"),
+        CueState::Finished => tr("Gespeeld", "Played"),
+        CueState::Stopped => tr("Gestopt", "Stopped"),
     }
 }
 
@@ -107,16 +136,36 @@ impl AppState {
     pub fn open_default() -> Self {
         let path = default_path();
         let mut message = String::new();
-        let show = match Show::load(&path) {
+        let mut recovered = false;
+        let loaded = match showmate_core::recoverable_autosave(&path) {
+            Some(auto) => match Show::load(&auto) {
+                Ok(show) => {
+                    recovered = true;
+                    Ok(show)
+                }
+                Err(_) => Show::load(&path),
+            },
+            None => Show::load(&path),
+        };
+        let show = match loaded {
             Ok(show) => show,
             Err(showmate_core::ShowError::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => {
                 demo_show()
             }
             Err(e) => {
-                message = format!("Laden mislukt, demoshow geopend: {e}");
+                message = t!(
+                    "Laden mislukt, demoshow geopend: {e}",
+                    "Loading failed, opened the demo show: {e}"
+                );
                 demo_show()
             }
         };
+        if recovered {
+            message = t!(
+                "Niet-opgeslagen wijzigingen hersteld uit de automatische kopie; sla op om ze te bewaren",
+                "Unsaved changes recovered from the automatic copy; save to keep them"
+            );
+        }
         let (audio, audio_info) = match AudioOutput::open_default() {
             Ok(a) => {
                 let info = format!(
@@ -127,7 +176,7 @@ impl AppState {
                 );
                 (Some(a), info)
             }
-            Err(e) => (None, format!("geen audio: {e}")),
+            Err(e) => (None, t!("geen audio: {e}", "no audio: {e}")),
         };
         let settings_dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
         let (settings, settings_msg) = crate::settings::load(&settings_dir);
@@ -161,7 +210,7 @@ impl AppState {
             engine: Engine::new(SystemClock::new(), show),
             selected: None,
             path,
-            dirty: false,
+            dirty: recovered,
             message,
             delay_ok: true,
             duration_ok: true,
@@ -194,6 +243,10 @@ impl AppState {
             settings_note: String::new(),
             fill_settings: false,
             fill_names: false,
+            undo: Vec::new(),
+            redo: Vec::new(),
+            last_edit: None,
+            last_autosave: Instant::now(),
         };
         state.preload_all();
         state.connect_midi();
@@ -299,7 +352,7 @@ impl AppState {
 
     fn start_video(&mut self, id: CueId, index: usize, cue: &Cue) {
         let problem = if cue.media.trim().is_empty() {
-            Some("geen bestand opgegeven".to_string())
+            Some(t!("geen bestand opgegeven", "no file specified"))
         } else {
             // Streams en testbronnen (`av://…`, `http://…`) gaan ongewijzigd naar mpv.
             let path = if cue.media.contains("://") {
@@ -308,7 +361,7 @@ impl AppState {
                 self.resolve_media(&cue.media)
             };
             if !cue.media.contains("://") && !path.is_file() {
-                Some(format!("{} niet gevonden", cue.media))
+                Some(t!("{} niet gevonden", "{} not found", cue.media))
             } else {
                 let audio = VideoAudio {
                     mute: cue.mute_audio,
@@ -340,6 +393,7 @@ impl AppState {
         match cue.kind {
             CueKind::Audio => {}
             CueKind::Video => return self.start_video(id, index, &cue),
+            CueKind::Group => return, // groepen hebben zelf geen uitvoer
             CueKind::Osc | CueKind::Midi => {
                 if let Err(e) = self.fire_io(&cue) {
                     self.message = format!("Cue {}: {e}", index + 1);
@@ -348,8 +402,8 @@ impl AppState {
             }
         }
         let problem = match (self.audio.as_mut(), cue.media.trim().is_empty()) {
-            (None, _) => Some("geen audio-apparaat".to_string()),
-            (_, true) => Some("geen bestand opgegeven".to_string()),
+            (None, _) => Some(t!("geen audio-apparaat", "no audio device")),
+            (_, true) => Some(t!("geen bestand opgegeven", "no file specified")),
             (Some(_), false) => {
                 let path = self.resolve_media(&cue.media);
                 match self.cache.status(&path) {
@@ -370,11 +424,17 @@ impl AppState {
                             .and_then(|a| a.play(params).err())
                             .map(|e| e.to_string())
                     }
-                    ClipStatus::Loading => Some(format!("{} wordt nog geladen", cue.media)),
+                    ClipStatus::Loading => {
+                        Some(t!("{} wordt nog geladen", "{} is still loading", cue.media))
+                    }
                     ClipStatus::Failed(e) => Some(format!("{}: {e}", cue.media)),
                     ClipStatus::Unknown => {
                         self.cache.request(&path);
-                        Some(format!("{} was nog niet geladen", cue.media))
+                        Some(t!(
+                            "{} was nog niet geladen",
+                            "{} had not been loaded yet",
+                            cue.media
+                        ))
                     }
                 }
             }
@@ -401,14 +461,40 @@ impl AppState {
     }
 
     pub fn add_cue(&mut self, kind: &str) {
-        let kind = match kind {
-            "video" => CueKind::Video,
-            "osc" => CueKind::Osc,
-            "midi" => CueKind::Midi,
-            _ => CueKind::Audio,
+        let (kind, mode) = match kind {
+            "video" => (CueKind::Video, None),
+            "osc" => (CueKind::Osc, None),
+            "midi" => (CueKind::Midi, None),
+            "group" => (CueKind::Group, Some(GroupMode::Sequence)),
+            "parallel" => (CueKind::Group, Some(GroupMode::Parallel)),
+            "loop" => (CueKind::Group, Some(GroupMode::Loop)),
+            _ => (CueKind::Audio, None),
         };
+        let before = self.snapshot();
         match self.engine.add_cue(kind, self.selected) {
             Ok(i) => {
+                let name = match kind {
+                    CueKind::Audio => tr("Nieuwe audio-cue", "New audio cue"),
+                    CueKind::Video => tr("Nieuwe video-cue", "New video cue"),
+                    CueKind::Osc => tr("Nieuwe OSC-cue", "New OSC cue"),
+                    CueKind::Midi => tr("Nieuwe MIDI-cue", "New MIDI cue"),
+                    CueKind::Group => "",
+                };
+                if !name.is_empty() {
+                    let _ = self.engine.update_cue(i, |c| c.name = name.into());
+                }
+                if let Some(mode) = mode {
+                    let name = match mode {
+                        GroupMode::Sequence => "Nieuwe groep",
+                        GroupMode::Parallel => "Nieuwe parallel-groep",
+                        GroupMode::Loop => "Nieuwe loop-groep",
+                    };
+                    let _ = self.engine.update_cue(i, |c| {
+                        c.group_mode = mode;
+                        c.name = name.into();
+                    });
+                }
+                self.push_undo(before, None);
                 self.selected = Some(i);
                 self.mark_changed();
             }
@@ -418,8 +504,10 @@ impl AppState {
 
     pub fn remove_selected(&mut self) {
         let Some(i) = self.selected else { return };
+        let before = self.snapshot();
         match self.engine.remove_cue(i) {
             Ok(_) => {
+                self.push_undo(before, None);
                 let n = self.engine.show().cues.len();
                 self.selected = if n == 0 { None } else { Some(i.min(n - 1)) };
                 self.mark_changed();
@@ -430,9 +518,12 @@ impl AppState {
 
     pub fn move_selected(&mut self, up: bool) {
         let Some(i) = self.selected else { return };
+        let before = self.snapshot();
         match self.engine.move_cue(i, up) {
             Ok(new) => {
-                if new != i {
+                // Een kind dat een groep verlaat houdt zijn index; vergelijk dus de lijst zelf.
+                if new != i || self.snapshot() != before {
+                    self.push_undo(before, None);
                     self.selected = Some(new);
                     self.dirty = true;
                     self.message.clear();
@@ -444,7 +535,12 @@ impl AppState {
 
     pub fn edit(&mut self, f: impl FnOnce(&mut Cue)) {
         let Some(i) = self.selected else { return };
+        let before = self.snapshot();
+        let id = self.engine.show().cues[i].id;
         if self.engine.update_cue(i, f).is_ok() {
+            if self.snapshot() != before {
+                self.push_undo(before, Some(id));
+            }
             self.dirty = true;
         }
     }
@@ -526,14 +622,32 @@ impl AppState {
         match self.engine.show().save(&self.path) {
             Ok(()) => {
                 self.dirty = false;
-                self.message = format!("Opgeslagen: {}", self.path.display());
+                self.message = t!("Opgeslagen: {}", "Saved: {}", self.path.display());
             }
-            Err(e) => self.message = format!("Opslaan mislukt: {e}"),
+            Err(e) => self.message = t!("Opslaan mislukt: {e}", "Saving failed: {e}"),
         }
     }
 
     fn fail(&mut self, e: EditError) {
-        self.message = e.to_string();
+        self.message = match e {
+            EditError::Busy => t!(
+                "cues zijn gepland; druk eerst op STOP om de lijst te wijzigen",
+                "cues are scheduled; press STOP first to change the list"
+            ),
+            EditError::CueActive => t!(
+                "deze cue is actief; stop hem eerst",
+                "this cue is active; stop it first"
+            ),
+            EditError::OutOfRange => t!("cue bestaat niet", "cue does not exist"),
+            EditError::Nested => t!(
+                "een groep kan niet in een groep",
+                "a group cannot be placed in a group"
+            ),
+            EditError::Unsupported => t!(
+                "een groep kan niet gedupliceerd worden",
+                "a group cannot be duplicated"
+            ),
+        };
     }
 
     fn mark_changed(&mut self) {
@@ -562,6 +676,7 @@ impl AppState {
     pub fn tick(&mut self, ui: &MainWindow) {
         let events = self.engine.tick();
         self.handle_events(events);
+        self.maybe_autosave();
         if let Some(a) = self.audio.as_mut() {
             a.drain_ended();
             let (l, r) = a.take_peaks();
@@ -620,6 +735,7 @@ impl AppState {
             .map(|c| self.io_labels(c))
             .collect();
         let show = self.engine.show();
+        let children: Vec<bool> = (0..show.cues.len()).map(|i| show.is_child(i)).collect();
         let rows: Vec<CueRow> = show
             .cues
             .iter()
@@ -628,15 +744,21 @@ impl AppState {
             .map(|(i, (cue, state))| CueRow {
                 number: i as i32 + 1,
                 name: cue.name.as_str().into(),
-                kind: kind_label(cue.kind).into(),
+                kind: type_label(cue).into(),
+                indent: children.get(i).copied().unwrap_or(false),
+                group: cue.kind == CueKind::Group,
                 media: io_labels
                     .get(i)
                     .and_then(|l| l.as_ref())
                     .map_or(cue.media.as_str(), |l| l.0.as_str())
                     .into(),
-                start: match cue.start {
-                    StartMode::Go => "GO",
-                    StartMode::Auto => "Auto",
+                start: if children.get(i).copied().unwrap_or(false) {
+                    "↳"
+                } else {
+                    match cue.start {
+                        StartMode::Go => "GO",
+                        StartMode::Auto => "Auto",
+                    }
                 }
                 .into(),
                 delay: format_delay(cue.delay).into(),
@@ -718,11 +840,12 @@ impl AppState {
                 );
                 ui.set_next_eta(
                     match next.starts_in {
-                        Some(d) => format!(
+                        Some(d) => t!(
                             "(over {})",
+                            "(in {})",
                             format_timecode(d, FPS).split('.').next().unwrap_or("")
                         ),
-                        None => "(wacht op GO)".to_string(),
+                        None => t!("(wacht op GO)", "(waiting for GO)"),
                     }
                     .into(),
                 );
@@ -740,9 +863,7 @@ impl AppState {
             .and_then(|i| self.engine.show().cues.get(i).map(|c| (i, c)));
         match cue {
             Some((i, c)) => {
-                ui.set_insp_title(
-                    format!("{} • {} ({})", i + 1, c.name, kind_label(c.kind)).into(),
-                );
+                ui.set_insp_title(format!("{} • {} ({})", i + 1, c.name, type_label(c)).into());
                 ui.set_insp_name(c.name.as_str().into());
                 ui.set_insp_media(c.media.as_str().into());
                 ui.set_insp_output(c.output.as_str().into());
@@ -825,9 +946,9 @@ impl AppState {
             ui.set_wave_title(format!("{} • {}", i + 1, cue.name).into());
             ui.set_wave_time(
                 match self.cache.status(&self.resolve_media(&cue.media)) {
-                    ClipStatus::Loading => "laden…".to_string(),
+                    ClipStatus::Loading => t!("laden…", "loading…"),
                     ClipStatus::Failed(e) => e,
-                    _ => "geen audio geladen".to_string(),
+                    _ => t!("geen audio geladen", "no audio loaded"),
                 }
                 .into(),
             );

@@ -1,0 +1,312 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl\n"
+
+msgctxt "MainWindow"
+msgid "+ Audio"
+msgstr "+ Audio"
+
+msgctxt "MainWindow"
+msgid "+ Bestemming"
+msgstr "+ Bestemming"
+
+msgctxt "MainWindow"
+msgid "+ Commando"
+msgstr "+ Commando"
+
+msgctxt "MainWindow"
+msgid "+ MIDI"
+msgstr "+ MIDI"
+
+msgctxt "MainWindow"
+msgid "+ OSC"
+msgstr "+ OSC"
+
+msgctxt "MainWindow"
+msgid "+ Video"
+msgstr "+ Video"
+
+msgctxt "MainWindow"
+msgid "Argumenten"
+msgstr "Argumenten"
+
+msgctxt "MainWindow"
+msgid "Argumenten (bv. f:0.7 5 true)"
+msgstr "Argumenten (bv. f:0.7 5 true)"
+
+msgctxt "MainWindow"
+msgid "Argumenten — "
+msgstr "Argumenten — "
+
+msgctxt "MainWindow"
+msgid "Audio"
+msgstr "Audio"
+
+msgctxt "MainWindow"
+msgid "Bestemming"
+msgstr "Bestemming"
+
+msgctxt "MainWindow"
+msgid "Bestemming — onbekend"
+msgstr "Bestemming — onbekend"
+
+msgctxt "MainWindow"
+msgid "Commando (uit instellingen)"
+msgstr "Commando (uit instellingen)"
+
+msgctxt "MainWindow"
+msgid "Commando — onbekend"
+msgstr "Commando — onbekend"
+
+msgctxt "MainWindow"
+msgid "Controller (0–127)"
+msgstr "Controller (0–127)"
+
+msgctxt "MainWindow"
+msgid "Cue naam"
+msgstr "Cue naam"
+
+msgctxt "MainWindow"
+msgid "Delay"
+msgstr "Delay"
+
+msgctxt "MainWindow"
+msgid "Delay (s of mm:ss)"
+msgstr "Delay (s of mm:ss)"
+
+msgctxt "MainWindow"
+msgid "Delay — ongeldig"
+msgstr "Delay — ongeldig"
+
+msgctxt "MainWindow"
+msgid "Duur"
+msgstr "Duur"
+
+msgctxt "MainWindow"
+msgid "Duur (leeg = onbepaald)"
+msgstr "Duur (leeg = onbepaald)"
+
+msgctxt "MainWindow"
+msgid "Duur (maximum, leeg = tot klaar)"
+msgstr "Duur (maximum, leeg = tot klaar)"
+
+msgctxt "MainWindow"
+msgid "Duur — ongeldig"
+msgstr "Duur — ongeldig"
+
+msgctxt "MainWindow"
+msgid "Fade in (s)"
+msgstr "Fade in (s)"
+
+msgctxt "MainWindow"
+msgid "Fade in — ongeldig"
+msgstr "Fade in — ongeldig"
+
+msgctxt "MainWindow"
+msgid "Fade out (s)"
+msgstr "Fade out (s)"
+
+msgctxt "MainWindow"
+msgid "Fade out — ongeldig"
+msgstr "Fade out — ongeldig"
+
+msgctxt "MainWindow"
+msgid "Geluid van video dempen"
+msgstr "Geluid van video dempen"
+
+msgctxt "MainWindow"
+msgid "Groep"
+msgstr "Groep"
+
+msgctxt "MainWindow"
+msgid "Groep (na elkaar)"
+msgstr "Groep (na elkaar)"
+
+msgctxt "MainWindow"
+msgid "Herhaal (loop)"
+msgstr "Herhaal (loop)"
+
+msgctxt "MainWindow"
+msgid "IP-adres of hostnaam"
+msgstr "IP-adres of hostnaam"
+
+msgctxt "MainWindow"
+msgid "Instellingen"
+msgstr "Instellingen"
+
+msgctxt "MainWindow"
+msgid "Kanaal (1–16)"
+msgstr "Kanaal (1–16)"
+
+msgctxt "MainWindow"
+msgid "Kanaal / data — ongeldig"
+msgstr "Kanaal / data — ongeldig"
+
+msgctxt "MainWindow"
+msgid "Loop"
+msgstr "Loop"
+
+msgctxt "MainWindow"
+msgid "Loop (herhalen)"
+msgstr "Loop (herhalen)"
+
+msgctxt "MainWindow"
+msgid "MIDI-uitgang"
+msgstr "MIDI-uitgang"
+
+msgctxt "MainWindow"
+msgid "Media"
+msgstr "Media"
+
+msgctxt "MainWindow"
+msgid "Media / doel"
+msgstr "Media / doel"
+
+msgctxt "MainWindow"
+msgid "Naam"
+msgstr "Naam"
+
+msgctxt "MainWindow"
+msgid "Noot (0–127)"
+msgstr "Noot (0–127)"
+
+msgctxt "MainWindow"
+msgid "Notities"
+msgstr "Notities"
+
+msgctxt "MainWindow"
+msgid "OSC-adres"
+msgstr "OSC-adres"
+
+msgctxt "MainWindow"
+msgid "OSC-bestemmingen (bv. lichttafel)"
+msgstr "OSC-bestemmingen (bv. lichttafel)"
+
+msgctxt "MainWindow"
+msgid "OSC-commando's (adres en argumenten, te kiezen per cue)"
+msgstr "OSC-commando's (adres en argumenten, te kiezen per cue)"
+
+msgctxt "MainWindow"
+msgid "Opslaan en sluiten"
+msgstr "Opslaan en sluiten"
+
+msgctxt "MainWindow"
+msgid "Output"
+msgstr "Output"
+
+msgctxt "MainWindow"
+msgid "PANIC"
+msgstr "PANIC"
+
+msgctxt "MainWindow"
+msgid "Parallel"
+msgstr "Parallel"
+
+msgctxt "MainWindow"
+msgid "Parallel (tegelijk)"
+msgstr "Parallel (tegelijk)"
+
+msgctxt "MainWindow"
+msgid "Poort"
+msgstr "Poort"
+
+msgctxt "MainWindow"
+msgid "Programma (0–127)"
+msgstr "Programma (0–127)"
+
+msgctxt "MainWindow"
+msgid "Selecteer een cue om te bewerken"
+msgstr "Selecteer een cue om te bewerken"
+
+msgctxt "MainWindow"
+msgid "Snelheid (0–127)"
+msgstr "Snelheid (0–127)"
+
+msgctxt "MainWindow"
+msgid "Soort"
+msgstr "Soort"
+
+msgctxt "MainWindow"
+msgid "Start"
+msgstr "Start"
+
+msgctxt "MainWindow"
+msgid "Status"
+msgstr "Status"
+
+msgctxt "MainWindow"
+msgid "Taal"
+msgstr "Taal"
+
+msgctxt "MainWindow"
+msgid "Tijdcode (show)"
+msgstr "Tijdcode (show)"
+
+msgctxt "MainWindow"
+msgid "Type"
+msgstr "Type"
+
+msgctxt "MainWindow"
+msgid "Vernieuwen"
+msgstr "Vernieuwen"
+
+msgctxt "MainWindow"
+msgid "Verstuurt: "
+msgstr "Verstuurt: "
+
+msgctxt "MainWindow"
+msgid "Video"
+msgstr "Video"
+
+msgctxt "MainWindow"
+msgid "Volgende cue"
+msgstr "Volgende cue"
+
+msgctxt "MainWindow"
+msgid "Volume (dB)"
+msgstr "Volume (dB)"
+
+msgctxt "MainWindow"
+msgid "Volume — ongeldig (−60…+12)"
+msgstr "Volume — ongeldig (−60…+12)"
+
+msgctxt "MainWindow"
+msgid "Waarde (0–127)"
+msgstr "Waarde (0–127)"
+
+msgctxt "MainWindow"
+msgid "geen video actief"
+msgstr "geen video actief"
+
+msgctxt "MainWindow"
+msgid "⏮ Reset"
+msgstr "⏮ Reset"
+
+msgctxt "MainWindow"
+msgid "⏸  PAUSE"
+msgstr "⏸  PAUSE"
+
+msgctxt "MainWindow"
+msgid "■  STOP"
+msgstr "■  STOP"
+
+msgctxt "MainWindow"
+msgid "▶  GO"
+msgstr "▶  GO"
+
+msgctxt "MainWindow"
+msgid "▶  HERVAT"
+msgstr "▶  HERVAT"
+
+msgctxt "MainWindow"
+msgid "▶ Test"
+msgstr "▶ Test"
+
+msgctxt "MainWindow"
+msgid "⚙ Instellingen"
+msgstr "⚙ Instellingen"
+
+msgctxt "MainWindow"
+msgid "💾 Opslaan"
+msgstr "💾 Opslaan"

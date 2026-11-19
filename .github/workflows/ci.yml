@@ -24,3 +24,24 @@ jobs:
         with:
           name: showmate-windows
           path: target/release/showmate.exe
+
+  installer:
+    needs: windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p showmate-app
+      # mpv meeleveren voor video; mislukt dit, dan wordt de installer zonder mpv gebouwd.
+      - name: mpv ophalen
+        continue-on-error: true
+        shell: pwsh
+        run: ./installer/fetch-mpv.ps1
+      - name: Installer bouwen (Inno Setup)
+        shell: pwsh
+        run: iscc /DAppVersion=0.1.0 installer\showmate.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: showmate-installer
+          path: dist/ShowMate-Setup-*.exe

@@ -123,6 +123,12 @@ impl AudioOutput {
         self.send(Command::StopAll { fade_frames })
     }
 
+    /// Alles meteen afkappen (2 ms ramp, net genoeg tegen een klik). Voor de panic-knop.
+    pub fn panic(&mut self) -> Result<(), AudioError> {
+        let fade_frames = self.frames(Duration::from_millis(2));
+        self.send(Command::StopAll { fade_frames })
+    }
+
     pub fn pause(&mut self) -> Result<(), AudioError> {
         self.send(Command::Pause)
     }

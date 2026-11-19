@@ -1,5 +1,7 @@
 #![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "windows")]
 
+#[macro_use]
+mod i18n;
 mod settings;
 mod state;
 
@@ -14,6 +16,7 @@ slint::include_modules!();
 fn main() -> Result<(), slint::PlatformError> {
     let ui = MainWindow::new()?;
     let app = Rc::new(RefCell::new(AppState::open_default()));
+    app.borrow().apply_language();
     app.borrow_mut().refresh_all(&ui);
 
     // Later verhuist de engine naar een eigen thread; voor nu tikt hij op de UI-timer.
@@ -73,6 +76,13 @@ fn main() -> Result<(), slint::PlatformError> {
         };
     }));
     wire!(on_edit_looping, |st, v: bool| st.edit(|c| c.looping = v));
+    wire!(on_language_selected, |st, i: i32| st.set_language(i));
+    wire!(on_undo, |st| st.undo());
+    wire!(on_redo, |st| st.redo());
+    wire!(on_duplicate_cue, |st| st.duplicate_selected());
+    wire!(on_panic, |st| st.panic_stop());
+    wire!(on_reset_show, |st| st.reset_show());
+    wire!(on_edit_group_mode, |st, i: i32| st.edit_group_mode(i));
     wire!(on_edit_mute, |st, v: bool| st.edit_mute(v));
     wire!(on_edit_osc_dest, |st, v: slint::SharedString| st
         .edit_osc_dest(&v));
@@ -107,6 +117,15 @@ fn main() -> Result<(), slint::PlatformError> {
         .edit_delay(&v));
     wire!(on_edit_duration, |st, v: slint::SharedString| st
         .edit_duration(&v));
+
+    // Bij afsluiten niet-opgeslagen werk bewaren (wordt bij de volgende start hersteld).
+    {
+        let app = app.clone();
+        ui.window().on_close_requested(move || {
+            app.borrow_mut().on_exit();
+            slint::CloseRequestResponse::HideWindow
+        });
+    }
 
     ui.run()
 }

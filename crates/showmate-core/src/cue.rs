@@ -13,6 +13,21 @@ pub enum CueKind {
     Video,
     Osc,
     Midi,
+    /// Container: de `span` cues direct na deze cue zijn de kinderen (zie [`GroupMode`]).
+    Group,
+}
+
+/// Hoe een groep zijn kinderen afspeelt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum GroupMode {
+    /// Kinderen na elkaar: elk kind start `delay` nadat het vorige is afgelopen.
+    #[default]
+    Sequence,
+    /// Alle kinderen tegelijk, elk `delay` na de start van de groep.
+    Parallel,
+    /// Als `Sequence`, maar herhaalt tot STOP (of tot de duur van de groep om is).
+    Loop,
 }
 
 /// Hoe een cue gestart wordt.
@@ -98,6 +113,12 @@ pub struct Cue {
     pub osc_args: String,
     #[serde(default)]
     pub midi: MidiMessage,
+    /// Groepen: hoe de kinderen worden afgespeeld.
+    #[serde(default)]
+    pub group_mode: GroupMode,
+    /// Groepen: aantal cues direct na deze cue dat erbij hoort (kinderen).
+    #[serde(default)]
+    pub span: usize,
 }
 
 impl Cue {
@@ -121,6 +142,8 @@ impl Cue {
             osc_address: String::new(),
             osc_args: String::new(),
             midi: MidiMessage::default(),
+            group_mode: GroupMode::Sequence,
+            span: 0,
         }
     }
 
@@ -131,6 +154,7 @@ impl Cue {
             CueKind::Video => ("Nieuwe video-cue", "Display 1"),
             CueKind::Osc => ("Nieuwe OSC-cue", ""),
             CueKind::Midi => ("Nieuwe MIDI-cue", ""),
+            CueKind::Group => ("Nieuwe groep", ""),
         };
         Self::new(id, name, kind).output(output)
     }
@@ -193,6 +217,12 @@ impl Cue {
 
     pub fn midi(mut self, midi: MidiMessage) -> Self {
         self.midi = midi;
+        self
+    }
+
+    pub fn group(mut self, mode: GroupMode) -> Self {
+        self.kind = CueKind::Group;
+        self.group_mode = mode;
         self
     }
 
