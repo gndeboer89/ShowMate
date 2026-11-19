@@ -9,6 +9,7 @@ Cue-gebaseerde show-control software voor Windows, geschreven in Rust met een Sl
 | `crates/showmate-core` | Cue-model, showfile (JSON), klok, cue-engine. Geen GUI/audio/video; volledig testbaar. |
 | `crates/showmate-audio` | Decoderen (symphonia), pure mixer, achtergrond-cache, cpal-uitvoer. Mixer en decoder zijn testbaar zonder geluidskaart. |
 | `crates/showmate-video` | Eén `mpv`-proces per scherm, aangestuurd via JSON-IPC (Unix-socket / Windows named pipe). |
+| `crates/showmate-io` | OSC (UDP, `rosc`) en MIDI-uitvoer (`midir`). Argumenten-parser, MIDI-bytes en UDP-verzending zijn getest. |
 | `crates/showmate-app` | Slint-GUI: cue-lijst, inspector, cues toevoegen/verwijderen/verplaatsen, opslaan. |
 
 ## Bouwen
@@ -34,7 +35,7 @@ Showfile: `%APPDATA%\ShowMate\show.showmate` (override met `SHOWMATE_FILE`); zon
 ## Roadmap
 
 0. Opzet ✅ · 1. Engine ✅ · 2. GUI (inspector, bewerken) ✅ · 3. Audio ✅ · 4. Video (mpv) ✅
-5. OSC/MIDI · 6. Groep/Parallel/Loop, installer
+5. OSC/MIDI ✅ · 6. Groep/Parallel/Loop, installer
 
 ## Bewerken
 
@@ -78,5 +79,25 @@ decoder-crash legt de show niet plat). Zet `mpv.exe` (van mpv.io / shinchiro-bui
 `SHOWMATE_MPV_ARGS` overschrijven dit.
 
 Beperkingen: opstartlatentie van een videocue is ~50–200 ms (geen pre-roll); mpv-processen worden
-bij een crash van ShowMate niet automatisch opgeruimd; geen geluid uit videobestanden
-(`--no-audio`, audio loopt via de audio-cues).
+bij een crash van ShowMate niet automatisch opgeruimd.
+
+**Geluid uit video** staat standaard aan, via het standaard audioapparaat van Windows. Per cue kun je
+het dempen (vinkje *Geluid van video dempen*) en het volume instellen (dB). Bij `Display 1+2` komt het
+geluid alleen van het eerste scherm.
+
+## OSC en MIDI
+
+Alles is aan te passen via **⚙ Instellingen** (opgeslagen in `settings.json` naast de showfile):
+
+- **OSC-bestemmingen**: naam, IP-adres/hostnaam en poort (bv. `Lighting` → `192.168.1.50:8000`).
+  Een OSC-cue kiest een bestemming op naam; hernoem je er een, dan volgen de cues vanzelf.
+- **OSC-commando's**: herbruikbare adressen + argumenten. Pas het adres één keer aan in de
+  instellingen en alle cues met dat commando volgen. Een cue kan ook een eigen adres hebben.
+- **MIDI-uitgang**: kies een poort (bv. loopMIDI, een interface) en ververs de lijst.
+
+Argumenten schrijf je als tekst: `f:0.7 5 true "tekst"`. Zonder prefix wordt het type geraden
+(`5` = int, `0.7` = float); met `i:` `f:` `s:` `b:` forceer je het. Veel lichttafels eisen floats: schrijf `f:0`.
+
+Overgangen (bv. spots 0 → 70% in 5 s) doet de tafel zelf: ShowMate stuurt één bericht bij de start van
+de cue. De knop **▶ Test** bij een OSC/MIDI-cue verstuurt het bericht meteen, zonder de show te starten.
+MIDI-cues ondersteunen Note On/Off, Control Change en Program Change (kanaal 1–16).

@@ -4,6 +4,7 @@
 //! voor events. Op Windows serialiseert een blokkerende lees op dezelfde pipe-handle het
 //! schrijven, dus delen we ze bewust niet.
 
+use crate::audio::{VideoAudio, volume_percent};
 use crate::ipc::{self, Stream};
 use crate::protocol::{MpvEvent, command_line, parse_event};
 use serde_json::{Value, json};
@@ -58,7 +59,7 @@ impl Player {
             .arg("--force-window=no")
             .arg("--keep-open=no")
             .arg("--no-terminal")
-            .arg("--no-audio")
+            .arg("--volume-max=200")
             .arg("--osc=no")
             .arg("--osd-level=0")
             .arg("--no-input-default-bindings")
@@ -126,7 +127,13 @@ impl Player {
     }
 
     /// Laadt en start een bestand.
-    pub fn load(&self, path: &Path, looping: bool) {
+    pub fn load(&self, path: &Path, looping: bool, audio: VideoAudio) {
+        self.send(&[json!("set_property"), json!("mute"), json!(audio.mute)]);
+        self.send(&[
+            json!("set_property"),
+            json!("volume"),
+            json!(volume_percent(audio.gain_db)),
+        ]);
         self.send(&[
             json!("set_property"),
             json!("loop-file"),

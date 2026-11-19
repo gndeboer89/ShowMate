@@ -13,6 +13,7 @@ path = "src/main.rs"
 showmate-core = { path = "../showmate-core" }
 showmate-audio = { path = "../showmate-audio" }
 showmate-video = { path = "../showmate-video" }
+showmate-io = { path = "../showmate-io" }
 serde.workspace = true
 serde_json.workspace = true
 slint = "1"

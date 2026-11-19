@@ -394,3 +394,13 @@ fn complete_finishes_only_active_cues() {
     assert!(e.complete(b).is_empty(), "nog niet gestart");
     assert!(e.complete(CueId(999)).is_empty());
 }
+
+#[test]
+fn new_io_fields_default_in_old_showfiles() {
+    let json =
+        r#"{"name":"oud","cues":[{"id":1,"name":"x","kind":"osc","start":"go"}],"next_id":2}"#;
+    let c = &Show::from_json(json).unwrap().cues[0];
+    assert!(!c.mute_audio);
+    assert_eq!(c.midi, MidiMessage::default());
+    assert!(c.osc_address.is_empty() && c.osc_command.is_empty());
+}

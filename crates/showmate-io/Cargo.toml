@@ -1,0 +1,19 @@
+[package]
+name = "showmate-io"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["midi"]
+# MIDI-uitvoer via midir (WinMM op Windows). Uitzetten voor builds zonder ALSA.
+midi = ["dep:midir"]
+
+[dependencies]
+showmate-core = { path = "../showmate-core" }
+rosc = "0.10"
+midir = { version = "0.10", optional = true }
+
+[lints]
+workspace = true

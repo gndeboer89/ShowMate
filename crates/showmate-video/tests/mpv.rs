@@ -44,7 +44,8 @@ fn plays_to_end_and_reports_duration() {
     let Some((mut out, _guard)) = output() else {
         return;
     };
-    out.start(7, &[0], Path::new(TEST_SRC), false).unwrap();
+    out.start(7, &[0], Path::new(TEST_SRC), false, VideoAudio::default())
+        .unwrap();
     assert!(out.is_playing(7));
     let events = wait_for(&mut out, 15, |e| e.contains(&VideoEvent::Ended { cue: 7 }));
     assert!(
@@ -65,7 +66,8 @@ fn stop_cue_does_not_report_end_and_loop_keeps_running() {
     let Some((mut out, _guard)) = output() else {
         return;
     };
-    out.start(1, &[0], Path::new(TEST_SRC), true).unwrap();
+    out.start(1, &[0], Path::new(TEST_SRC), true, VideoAudio::default())
+        .unwrap();
     let events = wait_for(&mut out, 3, |e| {
         e.iter().any(|e| matches!(e, VideoEvent::Duration { .. }))
     });
@@ -91,7 +93,14 @@ fn multi_display_cue_ends_once_when_all_ended() {
     let Some((mut out, _guard)) = output() else {
         return;
     };
-    out.start(5, &[0, 1], Path::new(TEST_SRC), false).unwrap();
+    out.start(
+        5,
+        &[0, 1],
+        Path::new(TEST_SRC),
+        false,
+        VideoAudio::default(),
+    )
+    .unwrap();
     assert_eq!(out.display_of(5), Some(0));
     let events = wait_for(&mut out, 15, |e| e.contains(&VideoEvent::Ended { cue: 5 }));
     let ended = events
@@ -106,8 +115,14 @@ fn missing_file_reports_error_and_ends() {
     let Some((mut out, _guard)) = output() else {
         return;
     };
-    out.start(3, &[0], Path::new("/bestaat/niet.mp4"), false)
-        .unwrap();
+    out.start(
+        3,
+        &[0],
+        Path::new("/bestaat/niet.mp4"),
+        false,
+        VideoAudio::default(),
+    )
+    .unwrap();
     let events = wait_for(&mut out, 10, |e| e.contains(&VideoEvent::Ended { cue: 3 }));
     assert!(
         events
@@ -123,7 +138,8 @@ fn killed_player_is_reported_and_respawned() {
     let Some((mut out, _guard)) = output() else {
         return;
     };
-    out.start(1, &[0], Path::new(TEST_SRC), true).unwrap();
+    out.start(1, &[0], Path::new(TEST_SRC), true, VideoAudio::default())
+        .unwrap();
     wait_for(&mut out, 3, |e| {
         e.iter().any(|e| matches!(e, VideoEvent::Duration { .. }))
     });
@@ -139,7 +155,8 @@ fn killed_player_is_reported_and_respawned() {
         "{events:?}"
     );
     // Volgende cue werkt weer (nieuw proces).
-    out.start(2, &[0], Path::new(TEST_SRC), false).unwrap();
+    out.start(2, &[0], Path::new(TEST_SRC), false, VideoAudio::default())
+        .unwrap();
     let events = wait_for(&mut out, 15, |e| e.contains(&VideoEvent::Ended { cue: 2 }));
     assert!(events.contains(&VideoEvent::Ended { cue: 2 }), "{events:?}");
 }
@@ -151,4 +168,123 @@ fn locate_reports_helpful_error() {
     if let Err(e) = err {
         assert!(e.contains("SHOWMATE_MPV"));
     }
+}
+
+// ---- geluid uit video ------------------------------------------------------------------
+
+/// Hoogste piek (0..=1) in een door mpv's `--ao=pcm` geschreven wav-bestand.
+fn wav_peak(path: &Path) -> f32 {
+    let b = std::fs::read(path).unwrap_or_default();
+    if b.len() < 12 {
+        return 0.0;
+    }
+    // Chunks doorlopen: "fmt " en "data".
+    let (mut fmt, mut bits, mut data) = (0u16, 0u16, &b[0..0]);
+    let mut i = 12;
+    while i + 8 <= b.len() {
+        let size = u32::from_le_bytes([b[i + 4], b[i + 5], b[i + 6], b[i + 7]]) as usize;
+        let body = &b[(i + 8).min(b.len())..(i + 8 + size).min(b.len())];
+        match &b[i..i + 4] {
+            b"fmt " if body.len() >= 16 => {
+                fmt = u16::from_le_bytes([body[0], body[1]]);
+                bits = u16::from_le_bytes([body[14], body[15]]);
+                if fmt == 0xFFFE && body.len() >= 26 {
+                    fmt = u16::from_le_bytes([body[24], body[25]]); // subformat
+                }
+            }
+            b"data" => {
+                data = body;
+                break;
+            }
+            _ => {}
+        }
+        i += 8 + size + (size & 1);
+    }
+    match (fmt, bits) {
+        (1, 16) => data
+            .chunks_exact(2)
+            .map(|c| f32::from(i16::from_le_bytes([c[0], c[1]])).abs() / 32768.0)
+            .fold(0.0, f32::max),
+        (3, 32) => data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]).abs())
+            .fold(0.0, f32::max),
+        _ => panic!("onverwacht wav-formaat {fmt}/{bits}"),
+    }
+}
+
+fn play_with_audio(tag: &str, audio: VideoAudio) -> Option<f32> {
+    let dir = std::env::temp_dir().join(format!("showmate-vaudio-{}-{tag}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let video = dir.join("tone.mp4");
+    let made = std::process::Command::new("ffmpeg")
+        .args([
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=d=1:s=160x90:r=25",
+        ])
+        .args([
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=1",
+            "-shortest",
+            "-pix_fmt",
+            "yuv420p",
+        ])
+        .arg(&video)
+        .status()
+        .is_ok_and(|s| s.success());
+    if !made {
+        eprintln!("ffmpeg niet gevonden: test overgeslagen");
+        return None;
+    }
+    let pcm = dir.join("out.wav");
+    let mut out = VideoOutput::new(VideoConfig {
+        extra_args: vec![
+            "--vo=null".into(),
+            "--ao=pcm".into(),
+            format!("--ao-pcm-file={}", pcm.display()),
+        ],
+        ..VideoConfig::default()
+    });
+    out.mpv().ok()?;
+    out.start(1, &[0], &video, false, audio).unwrap();
+    wait_for(&mut out, 15, |e| e.contains(&VideoEvent::Ended { cue: 1 }));
+    drop(out); // sluit mpv zodat het wav-bestand compleet is
+    let peak = wav_peak(&pcm);
+    std::fs::remove_dir_all(dir).unwrap();
+    Some(peak)
+}
+
+#[test]
+fn video_audio_is_on_by_default_and_can_be_muted() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(on) = play_with_audio("on", VideoAudio::default()) else {
+        return;
+    };
+    let off = play_with_audio(
+        "off",
+        VideoAudio {
+            mute: true,
+            gain_db: 0.0,
+        },
+    )
+    .unwrap();
+    let quiet = play_with_audio(
+        "quiet",
+        VideoAudio {
+            mute: false,
+            gain_db: -12.0,
+        },
+    )
+    .unwrap();
+    assert!(on > 0.05, "geluid hoort standaard aan te staan, piek {on}");
+    assert!(off < 0.001, "gedempt hoort stil te zijn, piek {off}");
+    let ratio = quiet / on;
+    assert!((0.2..0.32).contains(&ratio), "-12 dB ≈ 0.25×, was {ratio}");
 }

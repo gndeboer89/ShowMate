@@ -1,3 +1,4 @@
+use crate::audio::VideoAudio;
 use crate::player::{Player, PlayerConfig, PlayerEvent};
 use crate::protocol::MpvEvent;
 use std::collections::HashMap;
@@ -118,15 +119,21 @@ impl VideoOutput {
     }
 
     /// Speelt `path` op alle genoemde schermen; een lopende cue op dat scherm wordt vervangen.
+    /// Bij meerdere schermen komt het geluid alleen van het eerste (anders speelt het dubbel).
     pub fn start(
         &mut self,
         cue: u64,
         displays: &[usize],
         path: &Path,
         looping: bool,
+        audio: VideoAudio,
     ) -> Result<(), String> {
-        for &d in displays {
-            self.ensure_player(d)?.load(path, looping);
+        for (n, &d) in displays.iter().enumerate() {
+            let audio = VideoAudio {
+                mute: audio.mute || n > 0,
+                ..audio
+            };
+            self.ensure_player(d)?.load(path, looping, audio);
             self.playing.insert(d, cue);
         }
         Ok(())

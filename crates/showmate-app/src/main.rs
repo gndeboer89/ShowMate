@@ -73,6 +73,36 @@ fn main() -> Result<(), slint::PlatformError> {
         };
     }));
     wire!(on_edit_looping, |st, v: bool| st.edit(|c| c.looping = v));
+    wire!(on_edit_mute, |st, v: bool| st.edit_mute(v));
+    wire!(on_edit_osc_dest, |st, v: slint::SharedString| st
+        .edit_osc_dest(&v));
+    wire!(on_edit_osc_command, |st, v: slint::SharedString| st
+        .edit_osc_command(&v));
+    wire!(on_edit_osc_address, |st, v: slint::SharedString| st
+        .edit_osc_address(&v));
+    wire!(on_edit_osc_args, |st, v: slint::SharedString| st
+        .edit_osc_args(&v));
+    wire!(on_edit_midi_kind, |st, i: i32| st.edit_midi_kind(i));
+    wire!(on_edit_midi_num, |st, f: i32, v: slint::SharedString| st
+        .edit_midi_num(f, &v));
+    wire!(on_test_cue, |st| st.test_cue());
+    wire!(on_open_settings, |st| st.open_settings());
+    wire!(on_close_settings, |st| st.close_settings());
+    wire!(
+        on_dest_edited,
+        |st, i: i32, f: i32, v: slint::SharedString| st.dest_edited(i, f, &v)
+    );
+    wire!(on_dest_add, |st| st.dest_add());
+    wire!(on_dest_remove, |st, i: i32| st.dest_remove(i));
+    wire!(
+        on_cmd_edited,
+        |st, i: i32, f: i32, v: slint::SharedString| st.cmd_edited(i, f, &v)
+    );
+    wire!(on_cmd_add, |st| st.cmd_add());
+    wire!(on_cmd_remove, |st, i: i32| st.cmd_remove(i));
+    wire!(on_midi_selected, |st, v: slint::SharedString| st
+        .midi_selected(&v));
+    wire!(on_midi_refresh, |st| st.midi_refresh());
     wire!(on_edit_delay, |st, v: slint::SharedString| st
         .edit_delay(&v));
     wire!(on_edit_duration, |st, v: slint::SharedString| st

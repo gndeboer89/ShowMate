@@ -20,10 +20,12 @@ pub fn demo_show() -> Show {
     );
     show.push(
         Cue::new(z, "Spots - Opkomst", CueKind::Osc)
-            .media("MIDI / OSC")
             .delay_secs(5.0)
-            .output("OSC (Lighting)")
-            .notes("Spots langzaam op. Intensity 0 → 70% (5 s)"),
+            .output("Lighting")
+            .osc("/lighting/spots/opkomst", "f:0.7")
+            .notes(
+                "Spots langzaam op. Intensity 0 → 70% (5 s), de overgang doet de lichttafel zelf.",
+            ),
     );
     show.push(
         Cue::new(z, "Projectie - Bos", CueKind::Video)

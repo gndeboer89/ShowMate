@@ -1,5 +1,8 @@
 //! UI-staat naast de engine: selectie, bestandspad, rij-model en inspector-vulling.
 
+mod io;
+
+use crate::settings::Settings;
 use crate::{CueRow, MainWindow};
 use showmate_audio::{
     AudioClip, AudioOutput, ClipCache, ClipStatus, VoiceParams, parse_output_pair,
@@ -8,7 +11,8 @@ use showmate_core::{
     Cue, CueId, CueKind, CueState, EditError, Engine, Event, Show, StartMode, SystemClock,
     demo::demo_show, format_delay, format_duration, format_timecode, parse_db, parse_duration,
 };
-use showmate_video::{VideoEvent, VideoOutput, parse_displays};
+use showmate_io::{MidiOut, OscSender};
+use showmate_video::{VideoAudio, VideoEvent, VideoOutput, parse_displays};
 use slint::{Model, ModelRc, VecModel};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -42,6 +46,20 @@ pub struct AppState {
     preview_ticks: u32,
     preview_slot: usize,
     preview_shown: bool,
+    settings: Settings,
+    settings_dir: PathBuf,
+    osc: OscSender,
+    midi: Option<MidiOut>,
+    midi_ports: Vec<String>,
+    midi_status: String,
+    midi_list_error: String,
+    midi_ok: bool,
+    osc_args_error: String,
+    settings_open: bool,
+    settings_note: String,
+    /// Instellingenlijsten en keuzelijsten opnieuw vullen (met/zonder rijen te vervangen).
+    fill_settings: bool,
+    fill_names: bool,
 }
 
 /// Fallback-samplerate voor de cache als er geen audio-apparaat is.
@@ -139,7 +157,7 @@ impl AppState {
                 .as_ref()
                 .map_or(FALLBACK_RATE, AudioOutput::sample_rate),
         );
-        let state = Self {
+        let mut state = Self {
             engine: Engine::new(SystemClock::new(), show),
             selected: None,
             path,
@@ -163,8 +181,22 @@ impl AppState {
             preview_ticks: 0,
             preview_slot: 0,
             preview_shown: false,
+            settings,
+            settings_dir,
+            osc: OscSender::new(),
+            midi: None,
+            midi_ports: Vec::new(),
+            midi_status: String::new(),
+            midi_list_error: String::new(),
+            midi_ok: true,
+            osc_args_error: String::new(),
+            settings_open: false,
+            settings_note: String::new(),
+            fill_settings: false,
+            fill_names: false,
         };
         state.preload_all();
+        state.connect_midi();
         state
     }
 
@@ -278,8 +310,18 @@ impl AppState {
             if !cue.media.contains("://") && !path.is_file() {
                 Some(format!("{} niet gevonden", cue.media))
             } else {
+                let audio = VideoAudio {
+                    mute: cue.mute_audio,
+                    gain_db: cue.volume_db,
+                };
                 self.video
-                    .start(id.0, &parse_displays(&cue.output), &path, cue.looping)
+                    .start(
+                        id.0,
+                        &parse_displays(&cue.output),
+                        &path,
+                        cue.looping,
+                        audio,
+                    )
                     .err()
             }
         };
@@ -298,7 +340,12 @@ impl AppState {
         match cue.kind {
             CueKind::Audio => {}
             CueKind::Video => return self.start_video(id, index, &cue),
-            CueKind::Osc | CueKind::Midi => return,
+            CueKind::Osc | CueKind::Midi => {
+                if let Err(e) = self.fire_io(&cue) {
+                    self.message = format!("Cue {}: {e}", index + 1);
+                }
+                return;
+            }
         }
         let problem = match (self.audio.as_mut(), cue.media.trim().is_empty()) {
             (None, _) => Some("geen audio-apparaat".to_string()),
@@ -503,6 +550,12 @@ impl AppState {
         if std::mem::take(&mut self.fill_inspector) {
             self.fill_inspector(ui);
         }
+        if std::mem::take(&mut self.fill_settings) {
+            self.fill_settings_ui(ui, true);
+            self.fill_names = false;
+        } else if std::mem::take(&mut self.fill_names) {
+            self.fill_settings_ui(ui, false);
+        }
     }
 
     /// Elke timer-tick.
@@ -554,10 +607,18 @@ impl AppState {
         ui.set_rows(ModelRc::from(self.rows.clone()));
         self.refresh_live(ui);
         self.fill_inspector(ui);
+        self.fill_settings_ui(ui, true);
     }
 
     fn refresh_live(&mut self, ui: &MainWindow) {
         self.refresh_wave(ui);
+        let io_labels: Vec<Option<(String, String)>> = self
+            .engine
+            .show()
+            .cues
+            .iter()
+            .map(|c| self.io_labels(c))
+            .collect();
         let show = self.engine.show();
         let rows: Vec<CueRow> = show
             .cues
@@ -568,7 +629,11 @@ impl AppState {
                 number: i as i32 + 1,
                 name: cue.name.as_str().into(),
                 kind: kind_label(cue.kind).into(),
-                media: cue.media.as_str().into(),
+                media: io_labels
+                    .get(i)
+                    .and_then(|l| l.as_ref())
+                    .map_or(cue.media.as_str(), |l| l.0.as_str())
+                    .into(),
                 start: match cue.start {
                     StartMode::Go => "GO",
                     StartMode::Auto => "Auto",
@@ -586,7 +651,11 @@ impl AppState {
                         }
                     }
                 },
-                output: cue.output.as_str().into(),
+                output: io_labels
+                    .get(i)
+                    .and_then(|l| l.as_ref())
+                    .map_or(cue.output.as_str(), |l| l.1.as_str())
+                    .into(),
                 status: status_label(*state).into(),
                 active: matches!(state, CueState::Active { .. }),
                 done: matches!(state, CueState::Finished),
@@ -685,6 +754,7 @@ impl AppState {
                 ui.set_insp_delay(plain_secs(c.delay).into());
                 ui.set_insp_duration(c.duration.map(plain_secs).unwrap_or_default().into());
                 ui.set_insp_looping(c.looping);
+                self.fill_io_inspector(ui, c);
                 ui.set_insp_volume(
                     if c.volume_db == 0.0 {
                         String::new()

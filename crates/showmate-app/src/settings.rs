@@ -1,29 +1,84 @@
 //! Programma-instellingen uit `settings.json` naast de showfile. Alles is optioneel.
 //!
 //! ```json
-//! { "video": { "fullscreen": true, "screens": [1, 2], "mpv_path": "C:\\mpv\\mpv.exe", "extra_args": ["--hwdec=no"] } }
+//! {
+//!   "osc":  { "destinations": [{ "name": "Lighting", "host": "192.168.1.50", "port": 8000 }],
+//!             "commands":     [{ "name": "Spots op", "address": "/eos/cue/1/fire", "args": "" }] },
+//!   "midi": { "output": "loopMIDI Port" },
+//!   "video": { "fullscreen": true, "screens": [1, 2], "mpv_path": "C:\\mpv\\mpv.exe", "extra_args": [] }
+//! }
 //! ```
-//! `screens[n]` is de monitor-index (0 = eerste monitor) voor Display n+1.
+//! OSC en MIDI zijn ook in het programma aan te passen (⚙ Instellingen). `video.screens[n]` is de
+//! monitor-index (0 = eerste monitor) voor Display n+1.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use showmate_video::VideoConfig;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
     pub video: VideoSettings,
+    #[serde(default)]
+    pub osc: OscSettings,
+    #[serde(default)]
+    pub midi: MidiSettings,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct VideoSettings {
     #[serde(default)]
     pub fullscreen: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mpv_path: Option<PathBuf>,
     #[serde(default)]
     pub screens: Vec<usize>,
     #[serde(default)]
     pub extra_args: Vec<String>,
+}
+
+/// Een OSC-ontvanger (bv. de lichttafel). Cues verwijzen ernaar met de naam.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OscDestination {
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+}
+
+/// Een herbruikbaar OSC-commando: één plek om het adres aan te passen voor alle cues die het gebruiken.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OscCommand {
+    pub name: String,
+    pub address: String,
+    #[serde(default)]
+    pub args: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OscSettings {
+    pub destinations: Vec<OscDestination>,
+    pub commands: Vec<OscCommand>,
+}
+
+impl Default for OscSettings {
+    fn default() -> Self {
+        Self {
+            destinations: vec![OscDestination {
+                name: "Lighting".into(),
+                host: "127.0.0.1".into(),
+                port: 8000,
+            }],
+            commands: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MidiSettings {
+    /// Naam van de MIDI-uitgang; `None` = geen.
+    #[serde(default)]
+    pub output: Option<String>,
 }
 
 /// Leest `settings.json` uit `dir`. Ontbreekt het bestand, dan gelden de standaardwaarden;
@@ -44,6 +99,18 @@ pub fn load(dir: &Path) -> (Settings, Option<String>) {
             Some(format!("settings.json onleesbaar: {e}")),
         ),
     }
+}
+
+/// Schrijft `settings.json` atomair (tijdelijk bestand, dan hernoemen).
+pub fn save(dir: &Path, settings: &Settings) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    if !dir.as_os_str().is_empty() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let path = dir.join("settings.json");
+    let tmp = dir.join("settings.json.tmp");
+    std::fs::write(&tmp, json).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
 impl VideoSettings {
@@ -67,10 +134,19 @@ impl VideoSettings {
 mod tests {
     use super::*;
 
+    fn tmp(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("showmate-settings-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
     #[test]
     fn parses_partial_and_empty_settings() {
         let s: Settings = serde_json::from_str("{}").unwrap();
         assert!(!s.video.fullscreen);
+        assert_eq!(s.osc.destinations.len(), 1, "standaardbestemming Lighting");
+        assert_eq!(s.midi.output, None);
         let s: Settings =
             serde_json::from_str(r#"{"video":{"fullscreen":true,"screens":[1,2]}}"#).unwrap();
         assert!(s.video.fullscreen);
@@ -78,14 +154,39 @@ mod tests {
     }
 
     #[test]
+    fn explicit_empty_destination_list_stays_empty() {
+        let s: Settings = serde_json::from_str(r#"{"osc":{"destinations":[]}}"#).unwrap();
+        assert!(s.osc.destinations.is_empty());
+    }
+
+    #[test]
     fn missing_file_is_silent_and_broken_file_reports() {
-        let dir = std::env::temp_dir().join(format!("showmate-settings-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = tmp("load");
         let (_, msg) = load(&dir);
         assert!(msg.is_none());
         std::fs::write(dir.join("settings.json"), "{kapot").unwrap();
         let (_, msg) = load(&dir);
         assert!(msg.unwrap().contains("settings.json"));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn save_and_load_round_trip() {
+        let dir = tmp("roundtrip");
+        let mut s = Settings::default();
+        s.osc.destinations[0].host = "192.168.1.50".into();
+        s.osc.commands.push(OscCommand {
+            name: "Spots op".into(),
+            address: "/eos/cue/1/fire".into(),
+            args: "f:1".into(),
+        });
+        s.midi.output = Some("Port A".into());
+        save(&dir, &s).unwrap();
+        let (back, msg) = load(&dir);
+        assert!(msg.is_none());
+        assert_eq!(back.osc.destinations, s.osc.destinations);
+        assert_eq!(back.osc.commands, s.osc.commands);
+        assert_eq!(back.midi.output.as_deref(), Some("Port A"));
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
