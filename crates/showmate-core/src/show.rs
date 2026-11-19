@@ -60,6 +60,15 @@ impl Show {
         id
     }
 
+    /// Voegt een cue in op `index` (clamp op de lengte) met een nieuwe id.
+    pub fn insert(&mut self, index: usize, mut cue: Cue) -> CueId {
+        cue.id = self.next_id();
+        let id = cue.id;
+        let index = index.min(self.cues.len());
+        self.cues.insert(index, cue);
+        id
+    }
+
     pub fn to_json(&self) -> Result<String, ShowError> {
         Ok(serde_json::to_string_pretty(self)?)
     }

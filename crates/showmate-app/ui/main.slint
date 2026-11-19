@@ -1,9 +1,14 @@
+import { LineEdit, TextEdit, ComboBox, CheckBox, ScrollView, Palette } from "std-widgets.slint";
+
 export struct CueRow {
     number: int,
     name: string,
     kind: string,
+    media: string,
     start: string,
     delay: string,
+    duration: string,
+    output: string,
     status: string,
     active: bool,
     done: bool,
@@ -12,35 +17,99 @@ export struct CueRow {
 component ToolButton inherits Rectangle {
     in property <string> text;
     in property <color> fill: #232b3a;
+    in property <length> font: 15px;
+    in property <bool> enabled: true;
     callback clicked();
     border-radius: 8px;
     border-width: 1px;
     border-color: #3a4558;
-    background: touch.has-hover ? fill.brighter(0.15) : fill;
-    Text { text: root.text; color: white; font-size: 18px; font-weight: 600; }
-    touch := TouchArea { clicked => { root.clicked(); } }
+    opacity: enabled ? 1 : 0.4;
+    background: touch.has-hover && enabled ? fill.brighter(0.15) : fill;
+    Text { text: root.text; color: white; font-size: root.font; font-weight: 600; }
+    touch := TouchArea { clicked => { if (root.enabled) { root.clicked(); } } }
+}
+
+component Field inherits VerticalLayout {
+    in property <string> label;
+    in property <bool> valid: true;
+    spacing: 3px;
+    Text { text: root.label; color: root.valid ? #9aa6ba : #f87171; font-size: 12px; }
+    @children
+}
+
+component HeaderCell inherits Text {
+    horizontal-alignment: left;
+    min-width: 0px;
+    color: #9aa6ba;
+    font-size: 13px;
+    vertical-alignment: center;
+}
+
+component Cell inherits Text {
+    horizontal-alignment: left;
+    min-width: 0px;
+    color: white;
+    font-size: 14px;
+    vertical-alignment: center;
+    overflow: elide;
 }
 
 export component MainWindow inherits Window {
-    title: "ShowMate";
-    preferred-width: 1100px;
-    preferred-height: 640px;
-    min-width: 800px;
-    min-height: 480px;
+    in property <string> window-title: "ShowMate";
+    title: root.window-title;
+    preferred-width: 1200px;
+    preferred-height: 820px;
+    min-width: 960px;
+    min-height: 700px;
     background: #0e1420;
 
+    // Live (elke tick)
     in property <string> timecode: "00:00:00.00";
     in property <string> next-cue: "—";
     in property <string> next-eta: "";
     in property <bool> paused;
     in property <[CueRow]> rows;
+    in property <int> selected: -1;
+    in property <string> message;
+
+    // Inspector (alleen bij selectiewissel gevuld)
+    in property <bool> has-selection;
+    in property <bool> locked;
+    in property <string> insp-title;
+    in-out property <string> insp-name;
+    in-out property <string> insp-media;
+    in-out property <string> insp-output;
+    in-out property <string> insp-notes;
+    in-out property <int> insp-start-index;
+    in-out property <string> insp-delay;
+    in-out property <string> insp-duration;
+    in-out property <bool> insp-looping;
+    in property <bool> delay-ok: true;
+    in property <bool> duration-ok: true;
 
     callback go();
     callback pause();
     callback stop();
+    callback select(int);
+    callback add-cue(string);
+    callback remove-cue();
+    callback move-up();
+    callback move-down();
+    callback save();
+    callback edit-name(string);
+    callback edit-media(string);
+    callback edit-output(string);
+    callback edit-notes(string);
+    callback edit-start(bool);
+    callback edit-delay(string);
+    callback edit-duration(string);
+    callback edit-looping(bool);
 
-    FocusScope {
+    init => { Palette.color-scheme = ColorScheme.dark; fs.focus(); }
+
+    fs := FocusScope {
         key-pressed(event) => {
+            if (event.modifiers.control && event.text == "s") { root.save(); return accept; }
             if (event.text == " ") { root.go(); return accept; }
             if (event.text == "p") { root.pause(); return accept; }
             if (event.text == Key.Escape) { root.stop(); return accept; }
@@ -49,12 +118,13 @@ export component MainWindow inherits Window {
 
         VerticalLayout {
             padding: 16px;
-            spacing: 14px;
+            spacing: 12px;
 
+            // Transportbalk
             HorizontalLayout {
                 spacing: 12px;
-                height: 100px;
-                ToolButton { text: "▶  GO"; fill: #1c8a2e; horizontal-stretch: 2; clicked => { root.go(); } }
+                height: 92px;
+                ToolButton { text: "▶  GO"; font: 26px; fill: #1c8a2e; horizontal-stretch: 2; clicked => { root.go(); } }
                 ToolButton { text: root.paused ? "▶  HERVAT" : "⏸  PAUSE"; horizontal-stretch: 1; clicked => { root.pause(); } }
                 ToolButton { text: "■  STOP"; horizontal-stretch: 1; clicked => { root.stop(); } }
                 Rectangle {
@@ -78,40 +148,108 @@ export component MainWindow inherits Window {
                 }
             }
 
+            // Gereedschapsbalk
+            HorizontalLayout {
+                spacing: 8px;
+                height: 36px;
+                ToolButton { text: "+ Audio"; width: 92px; enabled: !root.locked; clicked => { root.add-cue("audio"); } }
+                ToolButton { text: "+ Video"; width: 92px; enabled: !root.locked; clicked => { root.add-cue("video"); } }
+                ToolButton { text: "+ OSC"; width: 80px; enabled: !root.locked; clicked => { root.add-cue("osc"); } }
+                ToolButton { text: "+ MIDI"; width: 80px; enabled: !root.locked; clicked => { root.add-cue("midi"); } }
+                Text { text: root.message; color: #fbbf24; font-size: 13px; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+                ToolButton { text: "💾 Opslaan"; width: 110px; clicked => { root.save(); } }
+                ToolButton { text: "↑"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-up(); } }
+                ToolButton { text: "↓"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-down(); } }
+                ToolButton { text: "🗑"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.remove-cue(); } }
+            }
+
+            // Cue-lijst
             Rectangle {
                 vertical-stretch: 1;
                 border-radius: 8px; border-width: 1px; border-color: #2a3344; background: #111826;
+                clip: true;
                 VerticalLayout {
                     padding: 4px;
                     HorizontalLayout {
-                        height: 30px; padding-left: 12px; spacing: 8px;
-                        Text { text: "#"; color: #9aa6ba; width: 30px; vertical-alignment: center; }
-                        Text { text: "Cue naam"; color: #9aa6ba; horizontal-stretch: 1; vertical-alignment: center; }
-                        Text { text: "Type"; color: #9aa6ba; width: 70px; vertical-alignment: center; }
-                        Text { text: "Start"; color: #9aa6ba; width: 60px; vertical-alignment: center; }
-                        Text { text: "Delay"; color: #9aa6ba; width: 80px; vertical-alignment: center; }
-                        Text { text: "Status"; color: #9aa6ba; width: 110px; vertical-alignment: center; }
+                        height: 30px; padding-left: 12px; padding-right: 12px; spacing: 8px;
+                        HeaderCell { text: "#"; width: 28px; }
+                        HeaderCell { text: "Cue naam"; horizontal-stretch: 1; }
+                        HeaderCell { text: "Type"; width: 60px; }
+                        HeaderCell { text: "Media"; width: 170px; }
+                        HeaderCell { text: "Start"; width: 54px; }
+                        HeaderCell { text: "Delay"; width: 74px; }
+                        HeaderCell { text: "Duur"; width: 64px; }
+                        HeaderCell { text: "Output"; width: 130px; }
+                        HeaderCell { text: "Status"; width: 90px; }
                     }
-                    for row in root.rows: Rectangle {
-                        height: 36px;
-                        border-radius: 4px;
-                        background: row.active ? #14532d : transparent;
-                        HorizontalLayout {
-                            padding-left: 12px; spacing: 8px;
-                            Text { text: row.number; color: white; width: 30px; vertical-alignment: center; }
-                            Text { text: row.name; color: white; horizontal-stretch: 1; vertical-alignment: center; overflow: elide; }
-                            Text { text: row.kind; color: #c5cee0; width: 70px; vertical-alignment: center; }
-                            Text { text: row.start; color: #c5cee0; width: 60px; vertical-alignment: center; }
-                            Text { text: row.delay; color: #c5cee0; width: 80px; vertical-alignment: center; }
-                            Text {
-                                text: row.status;
-                                color: row.active || row.done ? #4ade80 : #c5cee0;
-                                font-weight: row.active ? 700 : 400;
-                                width: 110px; vertical-alignment: center;
+                    ScrollView {
+                        VerticalLayout {
+                            for row[i] in root.rows: Rectangle {
+                                height: 34px;
+                                border-radius: 4px;
+                                background: root.selected == i ? #1e3a5f : (row.active ? #14532d : (touch.has-hover ? #182133 : transparent));
+                                HorizontalLayout {
+                                    padding-left: 12px; padding-right: 12px; spacing: 8px;
+                                    Cell { text: row.number; width: 28px; }
+                                    Cell { text: row.name; horizontal-stretch: 1; }
+                                    Cell { text: row.kind; width: 60px; color: #c5cee0; }
+                                    Cell { text: row.media; width: 170px; color: #c5cee0; }
+                                    Cell { text: row.start; width: 54px; color: #c5cee0; }
+                                    Cell { text: row.delay; width: 74px; color: #c5cee0; }
+                                    Cell { text: row.duration; width: 64px; color: #c5cee0; }
+                                    Cell { text: row.output; width: 130px; color: #c5cee0; }
+                                    Cell {
+                                        text: row.status; width: 90px;
+                                        color: row.active || row.done ? #4ade80 : #c5cee0;
+                                        font-weight: row.active ? 700 : 400;
+                                    }
+                                }
+                                touch := TouchArea { clicked => { root.select(i); fs.focus(); } }
                             }
                         }
                     }
-                    Rectangle { }
+                }
+            }
+
+            // Inspector
+            Rectangle {
+                height: 236px;
+                border-radius: 8px; border-width: 1px; border-color: #2a3344; background: #111826;
+                VerticalLayout {
+                    padding: 12px; spacing: 8px;
+                    Text {
+                        text: root.has-selection ? root.insp-title : "Selecteer een cue om te bewerken";
+                        color: white; font-size: 16px; font-weight: 700; overflow: elide;
+                    }
+                    HorizontalLayout {
+                        spacing: 16px;
+                        VerticalLayout {
+                            horizontal-stretch: 3; spacing: 6px;
+                            Field { label: "Naam";
+                                LineEdit { enabled: root.has-selection; text <=> root.insp-name; edited(t) => { root.edit-name(t); } } }
+                            Field { label: "Media / doel";
+                                LineEdit { enabled: root.has-selection; text <=> root.insp-media; edited(t) => { root.edit-media(t); } } }
+                            Field { label: "Output";
+                                LineEdit { enabled: root.has-selection; text <=> root.insp-output; edited(t) => { root.edit-output(t); } } }
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 2; spacing: 6px;
+                            Field { label: "Start";
+                                ComboBox { enabled: root.has-selection; model: ["GO", "Auto"]; current-index <=> root.insp-start-index;
+                                    selected(v) => { root.edit-start(v == "Auto"); } } }
+                            Field { label: root.delay-ok ? "Delay (s of mm:ss)" : "Delay — ongeldig"; valid: root.delay-ok;
+                                LineEdit { enabled: root.has-selection; text <=> root.insp-delay; edited(t) => { root.edit-delay(t); } } }
+                            Field { label: root.duration-ok ? "Duur (leeg = onbepaald)" : "Duur — ongeldig"; valid: root.duration-ok;
+                                LineEdit { enabled: root.has-selection; text <=> root.insp-duration; edited(t) => { root.edit-duration(t); } } }
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 3; spacing: 6px;
+                            CheckBox { enabled: root.has-selection; text: "Herhaal (loop)"; checked <=> root.insp-looping;
+                                toggled => { root.edit-looping(self.checked); } }
+                            Field { label: "Notities";
+                                TextEdit { enabled: root.has-selection; text <=> root.insp-notes; edited(t) => { root.edit-notes(t); } } }
+                        }
+                    }
                 }
             }
         }

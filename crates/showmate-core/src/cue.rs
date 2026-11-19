@@ -65,6 +65,17 @@ impl Cue {
         }
     }
 
+    /// Standaardcue voor een nieuw toegevoegd cue-type.
+    pub fn template(id: CueId, kind: CueKind) -> Self {
+        let (name, output) = match kind {
+            CueKind::Audio => ("Nieuwe audio-cue", "Audio 1+2"),
+            CueKind::Video => ("Nieuwe video-cue", "Display 1"),
+            CueKind::Osc => ("Nieuwe OSC-cue", "OSC"),
+            CueKind::Midi => ("Nieuwe MIDI-cue", "MIDI"),
+        };
+        Self::new(id, name, kind).output(output)
+    }
+
     pub fn media(mut self, media: impl Into<String>) -> Self {
         self.media = media.into();
         self

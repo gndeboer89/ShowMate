@@ -1,117 +1,75 @@
 #![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "windows")]
 
-use showmate_core::demo::demo_show;
-use showmate_core::{CueKind, CueState, Engine, StartMode, SystemClock, format_timecode};
-use slint::{ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
+mod state;
+
+use slint::{ComponentHandle, Timer, TimerMode};
+use state::AppState;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
 slint::include_modules!();
 
-const FPS: u32 = 25;
-
-fn kind_label(kind: CueKind) -> &'static str {
-    match kind {
-        CueKind::Audio => "Audio",
-        CueKind::Video => "Video",
-        CueKind::Osc => "OSC",
-        CueKind::Midi => "MIDI",
-    }
-}
-
-fn status_label(state: CueState) -> &'static str {
-    match state {
-        CueState::Waiting | CueState::Scheduled { .. } => "Wachtend",
-        CueState::Active { .. } => "Actief",
-        CueState::Finished => "Gespeeld",
-        CueState::Stopped => "Gestopt",
-    }
-}
-
-fn refresh(ui: &MainWindow, engine: &Engine<SystemClock>) {
-    let show = engine.show();
-    let rows: Vec<CueRow> = show
-        .cues
-        .iter()
-        .zip(engine.states())
-        .enumerate()
-        .map(|(i, (cue, state))| CueRow {
-            number: i as i32 + 1,
-            name: cue.name.as_str().into(),
-            kind: kind_label(cue.kind).into(),
-            start: match cue.start {
-                StartMode::Go => "GO",
-                StartMode::Auto => "Auto",
-            }
-            .into(),
-            delay: format!("+{:.1} s", cue.delay.as_secs_f64()).into(),
-            status: status_label(*state).into(),
-            active: matches!(state, CueState::Active { .. }),
-            done: matches!(state, CueState::Finished),
-        })
-        .collect();
-    ui.set_rows(ModelRc::new(VecModel::from(rows)));
-    ui.set_timecode(format_timecode(engine.show_time(), FPS).into());
-    ui.set_paused(engine.is_paused());
-
-    match engine.next_cue() {
-        Some(next) => {
-            ui.set_next_cue(format!("{} • {}", next.index + 1, show.cues[next.index].name).into());
-            ui.set_next_eta(
-                match next.starts_in {
-                    Some(d) => format!(
-                        "(over {})",
-                        format_timecode(d, FPS).rsplit_once('.').map_or("", |p| p.0)
-                    ),
-                    None => "(wacht op GO)".to_string(),
-                }
-                .into(),
-            );
-        }
-        None => {
-            ui.set_next_cue(SharedString::from("—"));
-            ui.set_next_eta(SharedString::new());
-        }
-    }
-}
-
 fn main() -> Result<(), slint::PlatformError> {
     let ui = MainWindow::new()?;
-    let engine = Rc::new(RefCell::new(Engine::new(SystemClock::new(), demo_show())));
-    refresh(&ui, &engine.borrow());
+    let app = Rc::new(RefCell::new(AppState::open_default()));
+    app.borrow_mut().refresh_all(&ui);
 
-    // Later verhuist de engine naar een eigen thread; voor de spike tikt hij op de UI-timer.
+    // Later verhuist de engine naar een eigen thread; voor nu tikt hij op de UI-timer.
     let timer = Timer::default();
     {
-        let (weak, engine) = (ui.as_weak(), engine.clone());
+        let (weak, app) = (ui.as_weak(), app.clone());
         timer.start(TimerMode::Repeated, Duration::from_millis(20), move || {
-            let mut engine = engine.borrow_mut();
-            engine.tick();
             if let Some(ui) = weak.upgrade() {
-                refresh(&ui, &engine);
+                app.borrow_mut().tick(&ui);
             }
         });
     }
 
-    ui.on_go({
-        let engine = engine.clone();
-        move || {
-            engine.borrow_mut().go();
-        }
-    });
-    ui.on_pause({
-        let engine = engine.clone();
-        move || {
-            engine.borrow_mut().toggle_pause();
-        }
-    });
-    ui.on_stop({
-        let engine = engine.clone();
-        move || {
-            engine.borrow_mut().stop();
-        }
-    });
+    // Elke callback: muteer de staat en ververs daarna de UI.
+    macro_rules! wire {
+        ($on:ident, |$st:ident $(, $arg:ident : $ty:ty)*| $body:expr) => {{
+            let (weak, app) = (ui.as_weak(), app.clone());
+            ui.$on(move |$($arg: $ty),*| {
+                if let Some(ui) = weak.upgrade() {
+                    let mut $st = app.borrow_mut();
+                    $body;
+                    $st.after_edit(&ui);
+                }
+            });
+        }};
+    }
+
+    wire!(on_go, |st| st.engine.go());
+    wire!(on_pause, |st| st.engine.toggle_pause());
+    wire!(on_stop, |st| st.engine.stop());
+    wire!(on_select, |st, i: i32| st.select(i));
+    wire!(on_add_cue, |st, kind: slint::SharedString| st
+        .add_cue(&kind));
+    wire!(on_remove_cue, |st| st.remove_selected());
+    wire!(on_move_up, |st| st.move_selected(true));
+    wire!(on_move_down, |st| st.move_selected(false));
+    wire!(on_save, |st| st.save());
+    wire!(on_edit_name, |st, v: slint::SharedString| st
+        .edit(|c| c.name = v.to_string()));
+    wire!(on_edit_media, |st, v: slint::SharedString| st
+        .edit(|c| c.media = v.to_string()));
+    wire!(on_edit_output, |st, v: slint::SharedString| st
+        .edit(|c| c.output = v.to_string()));
+    wire!(on_edit_notes, |st, v: slint::SharedString| st
+        .edit(|c| c.notes = v.to_string()));
+    wire!(on_edit_start, |st, auto: bool| st.edit(|c| {
+        c.start = if auto {
+            showmate_core::StartMode::Auto
+        } else {
+            showmate_core::StartMode::Go
+        };
+    }));
+    wire!(on_edit_looping, |st, v: bool| st.edit(|c| c.looping = v));
+    wire!(on_edit_delay, |st, v: slint::SharedString| st
+        .edit_delay(&v));
+    wire!(on_edit_duration, |st, v: slint::SharedString| st
+        .edit_duration(&v));
 
     ui.run()
 }

@@ -13,6 +13,6 @@ pub mod timecode;
 
 pub use clock::{Clock, ManualClock, SystemClock};
 pub use cue::{Cue, CueId, CueKind, StartMode};
-pub use engine::{CueState, Engine, Event, NextCue};
+pub use engine::{CueState, EditError, Engine, Event, NextCue};
 pub use show::{Show, ShowError};
-pub use timecode::format_timecode;
+pub use timecode::{format_delay, format_duration, format_timecode, parse_duration};

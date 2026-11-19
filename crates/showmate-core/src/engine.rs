@@ -11,7 +11,7 @@
 //! - De engine wordt aangedreven door [`Engine::tick`]; zij doet zelf geen I/O.
 
 use crate::clock::Clock;
-use crate::cue::{CueId, CueKind, StartMode};
+use crate::cue::{Cue, CueId, CueKind, StartMode};
 use crate::show::Show;
 use std::time::Duration;
 
@@ -36,6 +36,17 @@ pub enum Event {
     CueStarted(CueId),
     CueFinished(CueId),
     CueStopped(CueId),
+}
+
+/// Waarom een bewerking is geweigerd.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum EditError {
+    #[error("cues zijn gepland; druk eerst op STOP om de lijst te wijzigen")]
+    Busy,
+    #[error("deze cue is actief; stop hem eerst")]
+    CueActive,
+    #[error("cue bestaat niet")]
+    OutOfRange,
 }
 
 /// De eerstvolgende cue die nog moet starten.
@@ -192,6 +203,87 @@ impl<C: Clock> Engine<C> {
             None if matches!(cue.kind, CueKind::Osc | CueKind::Midi) => Some(started_at),
             None => None,
         }
+    }
+
+    // ---- bewerken ----------------------------------------------------
+    //
+    // Structurele wijzigingen (invoegen, verwijderen, verplaatsen) zijn alleen
+    // toegestaan zonder geplande cues, zodat de planning nooit verschuift.
+    // Runtime-status schuift mee met de cue.
+
+    fn ensure_idle(&self) -> Result<(), EditError> {
+        if self
+            .states
+            .iter()
+            .any(|s| matches!(s, CueState::Scheduled { .. }))
+        {
+            Err(EditError::Busy)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Voegt een cue in op `index` (0..=len) en geeft zijn id terug.
+    pub fn insert_cue(&mut self, index: usize, cue: Cue) -> Result<CueId, EditError> {
+        self.ensure_idle()?;
+        if index > self.show.cues.len() {
+            return Err(EditError::OutOfRange);
+        }
+        let id = self.show.insert(index, cue);
+        self.states.insert(index, CueState::Waiting);
+        Ok(id)
+    }
+
+    /// Voegt een nieuwe standaardcue toe direct na `after` (of onderaan) en geeft de index terug.
+    pub fn add_cue(&mut self, kind: CueKind, after: Option<usize>) -> Result<usize, EditError> {
+        let index = after.map_or(self.show.cues.len(), |i| (i + 1).min(self.show.cues.len()));
+        let cue = Cue::template(CueId(0), kind);
+        self.insert_cue(index, cue)?;
+        Ok(index)
+    }
+
+    pub fn remove_cue(&mut self, index: usize) -> Result<Cue, EditError> {
+        self.ensure_idle()?;
+        match self.states.get(index) {
+            None => return Err(EditError::OutOfRange),
+            Some(CueState::Active { .. }) => return Err(EditError::CueActive),
+            Some(_) => {}
+        }
+        self.states.remove(index);
+        Ok(self.show.cues.remove(index))
+    }
+
+    /// Verplaatst een cue één plek omhoog of omlaag. Geeft de nieuwe index terug;
+    /// aan de rand van de lijst gebeurt niets.
+    pub fn move_cue(&mut self, index: usize, up: bool) -> Result<usize, EditError> {
+        self.ensure_idle()?;
+        if index >= self.show.cues.len() {
+            return Err(EditError::OutOfRange);
+        }
+        let target = if up {
+            index.checked_sub(1)
+        } else {
+            Some(index + 1)
+        };
+        match target {
+            Some(t) if t < self.show.cues.len() => {
+                self.show.cues.swap(index, t);
+                self.states.swap(index, t);
+                Ok(t)
+            }
+            _ => Ok(index),
+        }
+    }
+
+    /// Past de eigenschappen van een cue aan. Mag altijd; de id blijft behouden.
+    /// Een al geplande starttijd verandert niet; de nieuwe waarden gelden voor
+    /// latere planning en voor het einde van een lopende cue.
+    pub fn update_cue(&mut self, index: usize, f: impl FnOnce(&mut Cue)) -> Result<(), EditError> {
+        let cue = self.show.cues.get_mut(index).ok_or(EditError::OutOfRange)?;
+        let id = cue.id;
+        f(cue);
+        cue.id = id;
+        Ok(())
     }
 
     // ---- status ------------------------------------------------------
