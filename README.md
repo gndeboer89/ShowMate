@@ -170,7 +170,7 @@ ShowMate is vrije software: je mag het gebruiken, bestuderen, aanpassen en delen
 **GNU General Public License, versie 3 of (naar keuze) een latere versie** (`GPL-3.0-or-later`). De volledige
 tekst staat in [`LICENSE`](LICENSE).
 
-Copyright (C) 2026 ShowMate contributors.
+Copyright (C) 2026 Geert de Boer.
 
 Dit programma wordt verspreid in de hoop dat het nuttig is, maar zonder enige garantie; zie de GPL voor details.
 

@@ -1,6 +1,6 @@
 # Licenties van onderdelen
 
-ShowMate is vrije software onder de **GNU General Public License v3.0 of later** (zie `LICENSE`).
+ShowMate is © 2026 Geert de Boer en vrije software onder de **GNU General Public License v3.0 of later** (zie `LICENSE`).
 Het gebruikt en levert de volgende onderdelen van derden mee.
 
 ## Slint (gebruikersinterface)
