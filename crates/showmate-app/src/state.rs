@@ -8,7 +8,9 @@ use showmate_core::{
     Cue, CueId, CueKind, CueState, EditError, Engine, Event, Show, StartMode, SystemClock,
     demo::demo_show, format_delay, format_duration, format_timecode, parse_db, parse_duration,
 };
+use showmate_video::{VideoEvent, VideoOutput, parse_displays};
 use slint::{Model, ModelRc, VecModel};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -34,6 +36,12 @@ pub struct AppState {
     cache: ClipCache,
     meter: (f32, f32),
     wave_cue: Option<CueId>,
+    video: VideoOutput,
+    video_info: String,
+    video_durations: HashMap<CueId, Duration>,
+    preview_ticks: u32,
+    preview_slot: usize,
+    preview_shown: bool,
 }
 
 /// Fallback-samplerate voor de cache als er geen audio-apparaat is.
@@ -103,6 +111,29 @@ impl AppState {
             }
             Err(e) => (None, format!("geen audio: {e}")),
         };
+        let settings_dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
+        let (settings, settings_msg) = crate::settings::load(&settings_dir);
+        let mut video = VideoOutput::new(settings.video.to_config());
+        let video_info = match video.mpv() {
+            Ok(p) => format!("mpv: {}", p.display()),
+            Err(e) => e.to_string(),
+        };
+        let mut warm: Vec<usize> = show
+            .cues
+            .iter()
+            .filter(|c| c.kind == CueKind::Video)
+            .flat_map(|c| parse_displays(&c.output))
+            .collect();
+        warm.sort_unstable();
+        warm.dedup();
+        if let Err(e) = video.warm(&warm)
+            && video.mpv().is_ok()
+        {
+            message = e;
+        }
+        if let Some(m) = settings_msg {
+            message = m;
+        }
         let cache = ClipCache::new(
             audio
                 .as_ref()
@@ -126,6 +157,12 @@ impl AppState {
             cache,
             meter: (0.0, 0.0),
             wave_cue: None,
+            video,
+            video_info,
+            video_durations: HashMap::new(),
+            preview_ticks: 0,
+            preview_slot: 0,
+            preview_shown: false,
         };
         state.preload_all();
         state
@@ -196,6 +233,7 @@ impl AppState {
     pub fn stop(&mut self) {
         let events = self.engine.stop();
         self.handle_events(events);
+        self.video.hide_all();
     }
 
     /// Vertaalt engine-events naar audio-acties.
@@ -207,19 +245,48 @@ impl AppState {
                     if let Some(a) = self.audio.as_mut() {
                         let _ = a.stop(id.0);
                     }
+                    self.video.stop_cue(id.0);
                 }
                 Event::Paused => {
                     if let Some(a) = self.audio.as_mut() {
                         let _ = a.pause();
                     }
+                    self.video.set_paused(true);
                 }
                 Event::Resumed => {
                     if let Some(a) = self.audio.as_mut() {
                         let _ = a.resume();
                     }
+                    self.video.set_paused(false);
                 }
-                Event::CueFinished(_) => {}
+                // Een cue met een eigen (kortere) duur kapt het beeld af.
+                Event::CueFinished(id) => self.video.stop_cue(id.0),
             }
+        }
+    }
+
+    fn start_video(&mut self, id: CueId, index: usize, cue: &Cue) {
+        let problem = if cue.media.trim().is_empty() {
+            Some("geen bestand opgegeven".to_string())
+        } else {
+            // Streams en testbronnen (`av://…`, `http://…`) gaan ongewijzigd naar mpv.
+            let path = if cue.media.contains("://") {
+                PathBuf::from(&cue.media)
+            } else {
+                self.resolve_media(&cue.media)
+            };
+            if !cue.media.contains("://") && !path.is_file() {
+                Some(format!("{} niet gevonden", cue.media))
+            } else {
+                self.video
+                    .start(id.0, &parse_displays(&cue.output), &path, cue.looping)
+                    .err()
+            }
+        };
+        if let Some(problem) = problem {
+            self.message = format!("Cue {}: {problem}", index + 1);
+            let events = self.engine.complete(id); // niet eindeloos "actief" laten staan
+            self.handle_events(events);
         }
     }
 
@@ -228,8 +295,10 @@ impl AppState {
             return;
         };
         let cue = self.engine.show().cues[index].clone();
-        if cue.kind != CueKind::Audio {
-            return;
+        match cue.kind {
+            CueKind::Audio => {}
+            CueKind::Video => return self.start_video(id, index, &cue),
+            CueKind::Osc | CueKind::Midi => return,
         }
         let problem = match (self.audio.as_mut(), cue.media.trim().is_empty()) {
             (None, _) => Some("geen audio-apparaat".to_string()),
@@ -360,6 +429,13 @@ impl AppState {
 
     pub fn edit_media(&mut self, text: &str) {
         let text = text.to_string();
+        if let Some(id) = self
+            .selected
+            .and_then(|i| self.engine.show().cues.get(i))
+            .map(|c| c.id)
+        {
+            self.video_durations.remove(&id);
+        }
         self.edit(|c| c.media = text.clone());
         if self.selected.is_some() && !text.trim().is_empty() {
             self.cache.request(&self.resolve_media(&text));
@@ -439,7 +515,39 @@ impl AppState {
             // Snelle attack, rustige release.
             self.meter = (l.max(self.meter.0 * 0.88), r.max(self.meter.1 * 0.88));
         }
+        self.poll_video();
         self.refresh_live(ui);
+        self.refresh_preview(ui);
+    }
+
+    fn poll_video(&mut self) {
+        for event in self.video.poll() {
+            match event {
+                VideoEvent::Duration { cue, secs } => {
+                    let id = CueId(cue);
+                    let len = Duration::from_secs_f64(secs);
+                    self.video_durations.insert(id, len);
+                    // Vangnet: eindigt de cue anders niet, dan na de bestandsduur plus marge.
+                    self.engine
+                        .set_media_duration(id, len + Duration::from_secs(1));
+                }
+                VideoEvent::Ended { cue } => {
+                    let id = CueId(cue);
+                    let own_end = self
+                        .engine
+                        .show()
+                        .cues
+                        .iter()
+                        .find(|c| c.id == id)
+                        .is_some_and(|c| c.duration.is_some() || c.looping);
+                    if !own_end {
+                        let events = self.engine.complete(id);
+                        self.handle_events(events);
+                    }
+                }
+                VideoEvent::Error { message, .. } => self.message = message,
+            }
+        }
     }
 
     pub fn refresh_all(&mut self, ui: &MainWindow) {
@@ -470,10 +578,13 @@ impl AppState {
                 duration: match (cue.looping, cue.duration) {
                     (true, _) => "Loop".into(),
                     (false, Some(d)) => format_duration(d).into(),
-                    (false, None) => match self.clip_for_kind(cue) {
-                        Some(clip) => format_duration(clip.duration()).into(),
-                        None => "—".into(),
-                    },
+                    (false, None) => {
+                        match (self.clip_for_kind(cue), self.video_durations.get(&cue.id)) {
+                            (Some(clip), _) => format_duration(clip.duration()).into(),
+                            (None, Some(len)) => format_duration(*len).into(),
+                            (None, None) => "—".into(),
+                        }
+                    }
                 },
                 output: cue.output.as_str().into(),
                 status: status_label(*state).into(),
@@ -501,6 +612,14 @@ impl AppState {
         ui.set_fade_in_ok(self.fade_in_ok);
         ui.set_fade_out_ok(self.fade_out_ok);
         ui.set_audio_info(self.audio_info.as_str().into());
+        ui.set_video_info(
+            if self.video.mpv().is_err() {
+                self.video_info.as_str()
+            } else {
+                ""
+            }
+            .into(),
+        );
         ui.set_meter_l(meter_fraction(self.meter.0));
         ui.set_meter_r(meter_fraction(self.meter.1));
         ui.set_delay_ok(self.delay_ok);
@@ -690,4 +809,62 @@ fn wave_path(peaks: &[f32]) -> String {
 fn format_clock(d: Duration) -> String {
     let s = d.as_secs();
     format!("{:02}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
+}
+
+impl AppState {
+    fn preview_file(slot: usize) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "showmate-preview-{}-{slot}.jpg",
+            std::process::id()
+        ))
+    }
+
+    /// Toont ~2,5×/s een stilstaand beeld van de actieve videocue (via mpv-screenshots).
+    fn refresh_preview(&mut self, ui: &MainWindow) {
+        let cues = &self.engine.show().cues;
+        let active = (0..cues.len()).find(|&i| {
+            cues[i].kind == CueKind::Video
+                && matches!(self.engine.states()[i], CueState::Active { .. })
+        });
+        let Some(i) = active else {
+            if std::mem::take(&mut self.preview_shown) {
+                ui.set_video_has_preview(false);
+            }
+            ui.set_video_title("".into());
+            ui.set_video_time("".into());
+            self.preview_ticks = 0;
+            return;
+        };
+        let cue = &cues[i];
+        ui.set_video_title(format!("{} • {}", i + 1, cue.name).into());
+        let elapsed = self.engine.progress(i).map_or(Duration::ZERO, |(e, _)| e);
+        let total = self.video_durations.get(&cue.id).copied().or(cue.duration);
+        ui.set_video_time(
+            match total {
+                Some(t) if !cue.looping => {
+                    format!("{} / {}", format_clock(elapsed), format_clock(t))
+                }
+                _ => format_clock(elapsed),
+            }
+            .into(),
+        );
+
+        if self.preview_ticks.is_multiple_of(20)
+            && let Some(display) = self.video.display_of(cue.id.0)
+        {
+            // Vraag een nieuw beeld aan in de ene slot en toon de vorige uit de andere.
+            self.video
+                .screenshot(display, &Self::preview_file(self.preview_slot));
+            self.preview_slot = 1 - self.preview_slot;
+            let shown = Self::preview_file(self.preview_slot);
+            if shown.exists()
+                && let Ok(img) = slint::Image::load_from_path(&shown)
+            {
+                ui.set_video_preview(img);
+                ui.set_video_has_preview(true);
+                self.preview_shown = true;
+            }
+        }
+        self.preview_ticks = self.preview_ticks.wrapping_add(1);
+    }
 }

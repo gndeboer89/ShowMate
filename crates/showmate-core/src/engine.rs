@@ -169,6 +169,20 @@ impl<C: Clock> Engine<C> {
         events
     }
 
+    /// Meldt dat de uitvoerlaag klaar is met een cue (bv. einde van een videobestand).
+    /// Alleen actieve cues worden afgerond; verder gebeurt er niets.
+    pub fn complete(&mut self, id: CueId) -> Vec<Event> {
+        let Some(i) = self.show.cues.iter().position(|c| c.id == id) else {
+            return Vec::new();
+        };
+        if matches!(self.states[i], CueState::Active { .. }) {
+            self.states[i] = CueState::Finished;
+            vec![Event::CueFinished(id)]
+        } else {
+            Vec::new()
+        }
+    }
+
     /// Zet de hele show terug naar het begin (alle cues wachtend, showtijd 0).
     pub fn reset(&mut self) {
         self.states.fill(CueState::Waiting);

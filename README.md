@@ -8,6 +8,7 @@ Cue-gebaseerde show-control software voor Windows, geschreven in Rust met een Sl
 |---|---|
 | `crates/showmate-core` | Cue-model, showfile (JSON), klok, cue-engine. Geen GUI/audio/video; volledig testbaar. |
 | `crates/showmate-audio` | Decoderen (symphonia), pure mixer, achtergrond-cache, cpal-uitvoer. Mixer en decoder zijn testbaar zonder geluidskaart. |
+| `crates/showmate-video` | Eén `mpv`-proces per scherm, aangestuurd via JSON-IPC (Unix-socket / Windows named pipe). |
 | `crates/showmate-app` | Slint-GUI: cue-lijst, inspector, cues toevoegen/verwijderen/verplaatsen, opslaan. |
 
 ## Bouwen
@@ -32,7 +33,7 @@ Showfile: `%APPDATA%\ShowMate\show.showmate` (override met `SHOWMATE_FILE`); zon
 
 ## Roadmap
 
-0. Opzet ✅ · 1. Engine ✅ · 2. GUI (inspector, bewerken) ✅ · 3. Audio ✅ · 4. Video (libmpv)
+0. Opzet ✅ · 1. Engine ✅ · 2. GUI (inspector, bewerken) ✅ · 3. Audio ✅ · 4. Video (mpv) ✅
 5. OSC/MIDI · 6. Groep/Parallel/Loop, installer
 
 ## Bewerken
@@ -53,3 +54,29 @@ zijn altijd aanpasbaar en gelden voor latere planning.
 
 Bekende beperkingen: lineaire resampling (geen sinc), WASAPI shared mode (geen ASIO),
 cues starten op de UI-timer (≤ 20 ms jitter) tot de engine een eigen thread krijgt.
+
+## Video
+
+Video draait via **mpv** als apart proces (geen gelinkte libmpv: geen DLL-/linkproblemen, en een
+decoder-crash legt de show niet plat). Zet `mpv.exe` (van mpv.io / shinchiro-builds) in de map
+`mpv\` naast `showmate.exe`, of stel `SHOWMATE_MPV` in, of zorg dat `mpv` op het PATH staat.
+
+- Output `Display 1`, `Display 2` of `Display 1+2` (beide schermen tegelijk).
+- Loop, duur (anders het einde van het bestand) en pauze/hervat werken zoals bij audio.
+- Een nieuwe videocue op een scherm vervangt de vorige op dat scherm.
+- Bij het openen van de show wordt per gebruikt scherm alvast een (onzichtbare) mpv gestart;
+  het venster verschijnt bij de eerste videocue en blijft zwart staan na afloop.
+  STOP stopt de beelden en sluit de uitvoervensters.
+- Preview rechtsonder: ~2,5×/s een screenshot van het actieve scherm.
+- Standaard draait de uitvoer in een gewoon venster. Voor een projector: `settings.json` naast de showfile:
+
+```json
+{ "video": { "fullscreen": true, "screens": [1, 2], "extra_args": ["--hwdec=auto"] } }
+```
+
+`screens[n]` is de monitor-index (0 = eerste monitor) voor Display n+1. `SHOWMATE_FULLSCREEN=1` en
+`SHOWMATE_MPV_ARGS` overschrijven dit.
+
+Beperkingen: opstartlatentie van een videocue is ~50–200 ms (geen pre-roll); mpv-processen worden
+bij een crash van ShowMate niet automatisch opgeruimd; geen geluid uit videobestanden
+(`--no-audio`, audio loopt via de audio-cues).

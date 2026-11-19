@@ -58,9 +58,9 @@ export component MainWindow inherits Window {
     in property <string> window-title: "ShowMate";
     title: root.window-title;
     preferred-width: 1200px;
-    preferred-height: 900px;
+    preferred-height: 940px;
     min-width: 960px;
-    min-height: 780px;
+    min-height: 820px;
     background: #0e1420;
 
     // Live (elke tick)
@@ -99,6 +99,13 @@ export component MainWindow inherits Window {
     in property <float> meter-l;
     in property <float> meter-r;
     in property <string> audio-info;
+
+    // Video-preview
+    in property <image> video-preview;
+    in property <bool> video-has-preview;
+    in property <string> video-title;
+    in property <string> video-time;
+    in property <string> video-info;
 
     in property <bool> delay-ok: true;
     in property <bool> duration-ok: true;
@@ -230,47 +237,66 @@ export component MainWindow inherits Window {
                 }
             }
 
-            // Audio-paneel: golfvorm, voortgang en level meter
-            Rectangle {
-                height: 96px;
-                border-radius: 8px; border-width: 1px; border-color: #2a3344; background: #111826;
-                HorizontalLayout {
-                    padding: 10px; spacing: 14px;
-                    VerticalLayout {
-                        width: 200px; spacing: 4px;
-                        Text { text: root.wave-title == "" ? "Audio" : root.wave-title; color: white; font-size: 14px; font-weight: 700; overflow: elide; }
-                        Text { text: root.wave-time; color: #c5cee0; font-size: 13px; overflow: elide; }
-                        Text { text: root.audio-info; color: #6b778c; font-size: 11px; overflow: elide; }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        background: #0b101b; border-radius: 4px; clip: true;
-                        Path {
-                            commands: root.wave-commands;
-                            viewbox-width: 512; viewbox-height: 100;
-                            width: parent.width; height: parent.height;
-                            stroke: #5b7fb5; stroke-width: 1px;
+            HorizontalLayout {
+                height: 140px; spacing: 12px;
+                Rectangle {
+                    horizontal-stretch: 1;
+                    border-radius: 8px; border-width: 1px; border-color: #2a3344; background: #111826;
+                    HorizontalLayout {
+                        padding: 10px; spacing: 14px;
+                        VerticalLayout {
+                            width: 200px; spacing: 4px;
+                            Text { text: root.wave-title == "" ? "Audio" : root.wave-title; color: white; font-size: 14px; font-weight: 700; overflow: elide; }
+                            Text { text: root.wave-time; color: #c5cee0; font-size: 13px; overflow: elide; }
+                            Text { text: root.audio-info; color: #6b778c; font-size: 11px; overflow: elide; }
                         }
                         Rectangle {
-                            x: 0px; width: parent.width * root.wave-progress; height: parent.height;
-                            background: #4ade8022;
-                        }
-                        Rectangle {
-                            x: parent.width * root.wave-progress; width: 2px; height: parent.height;
-                            background: #4ade80;
-                            visible: root.wave-commands != "";
-                        }
-                    }
-                    VerticalLayout {
-                        width: 150px; spacing: 8px; alignment: center;
-                        for level[n] in [root.meter-l, root.meter-r]: Rectangle {
-                            height: 14px; background: #0b101b; border-radius: 3px; clip: true;
+                            horizontal-stretch: 1;
+                            background: #0b101b; border-radius: 4px; clip: true;
+                            Path {
+                                commands: root.wave-commands;
+                                viewbox-width: 512; viewbox-height: 100;
+                                width: parent.width; height: parent.height;
+                                stroke: #5b7fb5; stroke-width: 1px;
+                            }
                             Rectangle {
-                                x: 0px; width: parent.width * level; height: parent.height;
-                                background: level > 0.95 ? #ef4444 : (level > 0.85 ? #f59e0b : #22c55e);
+                                x: 0px; width: parent.width * root.wave-progress; height: parent.height;
+                                background: #4ade8022;
+                            }
+                            Rectangle {
+                                x: parent.width * root.wave-progress; width: 2px; height: parent.height;
+                                background: #4ade80;
+                                visible: root.wave-commands != "";
                             }
                         }
-                        Text { text: "L / R"; color: #6b778c; font-size: 11px; horizontal-alignment: center; }
+                        VerticalLayout {
+                            width: 150px; spacing: 8px; alignment: center;
+                            for level[n] in [root.meter-l, root.meter-r]: Rectangle {
+                                height: 14px; background: #0b101b; border-radius: 3px; clip: true;
+                                Rectangle {
+                                    x: 0px; width: parent.width * level; height: parent.height;
+                                    background: level > 0.95 ? #ef4444 : (level > 0.85 ? #f59e0b : #22c55e);
+                                }
+                            }
+                            Text { text: "L / R"; color: #6b778c; font-size: 11px; horizontal-alignment: center; }
+                        }
+                    }
+                }
+                Rectangle {
+                    width: 250px;
+                    border-radius: 8px; border-width: 1px; border-color: #2a3344; background: #111826;
+                    VerticalLayout {
+                        padding: 8px; spacing: 4px;
+                        HorizontalLayout {
+                            spacing: 8px; height: 18px;
+                            Text { text: root.video-title == "" ? "Video" : root.video-title; color: white; font-size: 13px; font-weight: 700; overflow: elide; horizontal-stretch: 1; }
+                            Text { text: root.video-time; color: #c5cee0; font-size: 12px; }
+                        }
+                        Rectangle {
+                            vertical-stretch: 1; background: #05070c; border-radius: 4px; clip: true;
+                            Image { source: root.video-preview; image-fit: contain; width: parent.width; height: parent.height; visible: root.video-has-preview; }
+                            Text { text: root.video-has-preview ? "" : (root.video-info != "" ? root.video-info : "geen video actief"); wrap: word-wrap; width: parent.width - 16px; horizontal-alignment: center; color: #6b778c; font-size: 12px; }
+                        }
                     }
                 }
             }

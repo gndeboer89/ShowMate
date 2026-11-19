@@ -381,3 +381,16 @@ fn new_audio_fields_default_in_old_showfiles() {
     assert_eq!(show.cues[0].volume_db, 0.0);
     assert_eq!(show.cues[0].fade_in, Duration::ZERO);
 }
+
+#[test]
+fn complete_finishes_only_active_cues() {
+    let (mut e, _c) = engine(vec![cue("a", CueKind::Video), cue("b", CueKind::Video)]);
+    let (a, b) = (id(&e, 0), id(&e, 1));
+    assert!(e.complete(a).is_empty(), "wachtende cue");
+    e.go();
+    assert_eq!(e.complete(a), vec![Event::CueFinished(a)]);
+    assert_eq!(e.states()[0], CueState::Finished);
+    assert!(e.complete(a).is_empty(), "al klaar");
+    assert!(e.complete(b).is_empty(), "nog niet gestart");
+    assert!(e.complete(CueId(999)).is_empty());
+}
