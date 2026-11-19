@@ -49,6 +49,15 @@ mod imp {
         Some(path)
     }
 
+    pub fn info(title: &str, text: &str) {
+        let _ = rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Info)
+            .set_title(title)
+            .set_description(text)
+            .set_buttons(rfd::MessageButtons::Ok)
+            .show();
+    }
+
     pub fn confirm_unsaved(title: &str, text: &str) -> Unsaved {
         use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
         match MessageDialog::new()
@@ -101,6 +110,10 @@ mod imp {
         Some(p)
     }
 
+    pub fn info(title: &str, text: &str) {
+        eprintln!("{title}: {text}");
+    }
+
     pub fn confirm_unsaved(_: &str, _: &str) -> Unsaved {
         match next().as_deref() {
             Some("yes") => Unsaved::Save,
@@ -110,4 +123,4 @@ mod imp {
     }
 }
 
-pub use imp::{confirm_unsaved, pick_file, save_file};
+pub use imp::{confirm_unsaved, info, pick_file, save_file};

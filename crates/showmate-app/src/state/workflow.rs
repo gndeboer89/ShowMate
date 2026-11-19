@@ -165,4 +165,17 @@ impl AppState {
             let _ = std::fs::remove_file(autosave_path(&self.path));
         }
     }
+
+    /// Help → Over ShowMate.
+    pub fn about(&self) {
+        let text = format!(
+            "ShowMate {}\n\n{}\nCopyright (C) 2026 Geert de Boer\nGPL-3.0-or-later\nhttps://github.com/gndeboer89/ShowMate",
+            env!("CARGO_PKG_VERSION"),
+            crate::i18n::tr(
+                "Cue-software voor shows (audio, video, OSC, MIDI).",
+                "Cue software for shows (audio, video, OSC, MIDI)."
+            ),
+        );
+        crate::dialogs::info(crate::i18n::tr("Over ShowMate", "About ShowMate"), &text);
+    }
 }

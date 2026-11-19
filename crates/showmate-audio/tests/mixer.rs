@@ -209,3 +209,19 @@ fn full_mixer_rejects_extra_voices() {
     assert_eq!(m.voice_count(), MAX_VOICES);
     assert_eq!(ended(&mut m), vec![MAX_VOICES as u64]);
 }
+
+/// Een testtoon voor de "Test uitgang"-knop: `secs` seconden sinus met korte fades.
+#[test]
+fn test_tone_clip_is_stereo_with_fades() {
+    let clip = AudioClip::test_tone(48_000, 0.5, 440.0);
+    assert_eq!(clip.sample_rate(), 48_000);
+    assert!((clip.duration().as_secs_f64() - 0.5).abs() < 0.01);
+    let peak = clip.samples().iter().fold(0.0f32, |m, s| m.max(s.abs()));
+    assert!(peak > 0.2 && peak < 0.5, "niet te hard: {peak}");
+    assert!(
+        clip.samples()[0].abs() < 0.01 && clip.samples()[1].abs() < 0.01,
+        "begint stil"
+    );
+    let n = clip.samples().len();
+    assert!(clip.samples()[n - 1].abs() < 0.01, "eindigt stil");
+}

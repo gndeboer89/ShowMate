@@ -6,6 +6,9 @@ use crate::keys::{self, Action};
 
 impl AppState {
     /// Verwerkt een toetsaanslag uit de UI. Geeft `true` als de toets is afgehandeld.
+    /// Verwerkt een toetsaanslag. `from_settings`: komt uit het instellingenvenster, waar alleen
+    /// een nieuwe sneltoets wordt opgenomen; anders uit het hoofdvenster (sneltoetsen uitvoeren).
+    /// Geeft `true` als de toets is afgehandeld.
     pub fn handle_key(
         &mut self,
         text: &str,
@@ -13,12 +16,16 @@ impl AppState {
         shift: bool,
         alt: bool,
         meta: bool,
+        from_settings: bool,
     ) -> bool {
         let Some(combo) = keys::normalize(text, ctrl, shift, alt, meta) else {
             // Losse modifier: tijdens het opnemen blijven we wachten op de echte toets.
-            return self.capturing.is_some();
+            return from_settings && self.capturing.is_some();
         };
-        if let Some(action) = self.capturing.take() {
+        if from_settings {
+            let Some(action) = self.capturing.take() else {
+                return false;
+            };
             match self.shortcuts.assign(action, &combo) {
                 Ok(()) => {
                     self.settings.shortcuts = self.shortcuts.overrides().clone();
@@ -35,8 +42,8 @@ impl AppState {
             self.fill_names = true;
             return true;
         }
-        if self.settings_open {
-            return false; // geen show-acties terwijl het instellingenvenster open staat
+        if self.capturing.is_some() {
+            return false; // tijdens het opnemen van een toets geen show-acties
         }
         match self.shortcuts.lookup(&combo) {
             Some(action) => {

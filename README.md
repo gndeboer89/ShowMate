@@ -71,7 +71,7 @@ decoder-crash legt de show niet plat). Zet `mpv.exe` (van mpv.io / shinchiro-bui
   het venster verschijnt bij de eerste videocue en blijft zwart staan na afloop.
   STOP stopt de beelden en sluit de uitvoervensters.
 - Preview rechtsonder: ~2,5×/s een screenshot van het actieve scherm.
-- Standaard draait de uitvoer in een gewoon venster. **Schermen instellen: Instellingen → Video (schermen)**: vink
+- Standaard draait de uitvoer in een gewoon venster. **Schermen instellen: menu Instellingen → Video…**: vink
   *volledig scherm* aan en kies per display (Display 1…4) op welke monitor het komt; daar staat ook het pad naar mpv.
   Wijzigingen gelden na *Opslaan en sluiten* (de spelers worden dan opnieuw gestart). Handmatig kan ook in `settings.json`:
 
@@ -110,6 +110,26 @@ Overgangen (bv. spots 0 → 70% in 5 s) doet de tafel zelf: ShowMate stuurt éé
 de cue. De knop **▶ Test** bij een OSC/MIDI-cue verstuurt het bericht meteen, zonder de show te starten.
 MIDI-cues ondersteunen Note On/Off, Control Change en Program Change (kanaal 1–16).
 
+## Menubalk en instellingen
+
+Bovenin het venster staat een menubalk: **Bestand** (nieuw, openen, recente shows, opslaan, afsluiten), **Bewerken**
+(ongedaan maken, dupliceren, cue toevoegen), **Show** (GO, pauze, stop, panic, reset), **Instellingen** en **Help**
+(over ShowMate). Achter de menu-items staat de actuele sneltoets.
+
+**Instellingen** is een eigen venster met een zijbalk met categorieën:
+
+| Categorie | Wat |
+|---|---|
+| Algemeen | taal (NL/EN), mediabestanden kopiëren naar de show |
+| Audio | **uitvoerapparaat** kiezen, testtoon op uitgang 1+2 / 3+4 / 5+6 |
+| Video | volledig scherm, monitor per display, pad naar mpv |
+| OSC | bestemmingen (IP/poort) en commando's |
+| MIDI | MIDI-uitgang |
+| Sneltoetsen | alle sneltoetsen aanpassen |
+
+Het venster kun je open laten staan naast het hoofdvenster. *Sluiten* (of het kruisje) past de instellingen toe en bewaart
+ze. De audio-uitgang wordt meteen omgeschakeld zodra je een apparaat kiest, zodat je met de testtoon kunt controleren.
+
 ## GO en de playhead
 
 De cue die de volgende **GO** (of `Spatie`) start is de *playhead*; die staat bovenin bij *Volgende cue* en heeft een
@@ -121,8 +141,7 @@ van een groep zet de groep zelf klaar.
 
 ## Shows en bestanden
 
-- **Bestand** (of `Ctrl+N` / `Ctrl+O` / `Ctrl+Shift+S`): nieuwe show, openen, opslaan, opslaan als en een lijst met
-  recent geopende shows. Bij het starten opent ShowMate de laatst gebruikte show. Een show is één `.showmate`-bestand;
+- **Menu Bestand** (of `Ctrl+N` / `Ctrl+O` / `Ctrl+Shift+S`): nieuwe show, openen, recente shows, opslaan, opslaan als en afsluiten. Bij het starten opent ShowMate de laatst gebruikte show. Een show is één `.showmate`-bestand;
   hij heeft zijn eigen map met een submap `media`.
 - **Niet-opgeslagen wijzigingen**: bij nieuw/openen vraagt ShowMate of je eerst wilt opslaan.
 - **Opslaan als** in een andere map neemt de mediabestanden die relatief bij de show horen mee.
@@ -213,6 +232,11 @@ Dit programma wordt verspreid in de hoop dat het nuttig is, maar zonder enige ga
 
 Licenties van gebruikte onderdelen (Slint onder GPL-3.0, mpv/FFmpeg in de installer, Rust-crates): zie
 [`THIRD-PARTY.md`](THIRD-PARTY.md). Lijst opnieuw genereren: `python3 tools/gen-third-party.py`.
+
+## Versienummers
+
+De release-versie komt uit git-tags (`vX.Y.Z`): elke push naar `main` verhoogt het laatste getal. Een nieuwe grote versie
+start je door `major.minor` in [`version.txt`](version.txt) te verhogen (bv. `0.3`): de eerstvolgende release wordt dan `0.3.0`.
 
 ## Logo en pictogrammen
 

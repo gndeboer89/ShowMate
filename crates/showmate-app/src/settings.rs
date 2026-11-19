@@ -5,6 +5,7 @@
 //!   "osc":  { "destinations": [{ "name": "Lighting", "host": "192.168.1.50", "port": 8000 }],
 //!             "commands":     [{ "name": "Spots op", "address": "/eos/cue/1/fire", "args": "" }] },
 //!   "midi": { "output": "loopMIDI Port" },
+//!   "audio": { "device": "Speakers (Realtek High Definition Audio)" },
 //!   "shortcuts": { "go": "Enter", "pause": "F5" },
 //!   "language": "nl",
 //!   "video": { "fullscreen": true, "screens": [1, 2], "mpv_path": "C:\\mpv\\mpv.exe", "extra_args": [] }
@@ -25,6 +26,8 @@ pub struct Settings {
     pub osc: OscSettings,
     #[serde(default)]
     pub midi: MidiSettings,
+    #[serde(default)]
+    pub audio: AudioSettings,
     /// Eigen sneltoetsen: actie → toets (bv. `"go": "Enter"`); alleen afwijkingen van de standaard.
     #[serde(default)]
     pub shortcuts: std::collections::BTreeMap<String, String>,
@@ -121,6 +124,14 @@ impl Default for OscSettings {
     }
 }
 
+/// Audio-uitgang.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AudioSettings {
+    /// Naam van het uitvoerapparaat; `None` = standaardapparaat van het systeem.
+    #[serde(default)]
+    pub device: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MidiSettings {
     /// Naam van de MIDI-uitgang; `None` = geen.
@@ -134,6 +145,7 @@ impl Default for Settings {
             video: VideoSettings::default(),
             osc: OscSettings::default(),
             midi: MidiSettings::default(),
+            audio: AudioSettings::default(),
             shortcuts: Default::default(),
             last_show: None,
             recent: Vec::new(),

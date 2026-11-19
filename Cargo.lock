@@ -4178,7 +4178,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "showmate-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rfd",
  "serde",
@@ -4194,7 +4194,7 @@ dependencies = [
 
 [[package]]
 name = "showmate-audio"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cpal",
  "rtrb",
@@ -4204,7 +4204,7 @@ dependencies = [
 
 [[package]]
 name = "showmate-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4213,7 +4213,7 @@ dependencies = [
 
 [[package]]
 name = "showmate-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "midir",
  "rosc",
@@ -4222,7 +4222,7 @@ dependencies = [
 
 [[package]]
 name = "showmate-video"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
 ]

@@ -43,6 +43,65 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      # Versie: `version.txt` bevat de gewenste major.minor (bv. `0.2`). Is dat hoger dan die van de
+      # laatste tag `vX.Y.Z`, dan wordt het `<major.minor>.0` (zo start je een nieuwe grote versie);
+      # anders is het laatste getal van de laatste tag +1. Eerste release: `<major.minor>.0`.
+      # Alleen een push naar main maakt een release; zet `[skip release]` in de commit-
+      # boodschap om dat over te slaan. Andere builds krijgen versie 0.0.0 en geen release.
+      - name: Versie bepalen
+        id: ver
+        shell: pwsh
+        run: |
+          $release = 'false'
+          $version = '0.0.0'
+          if ($env:GITHUB_REF -eq 'refs/heads/main' -and $env:GITHUB_EVENT_NAME -eq 'push') {
+            $msg = git log -1 --pretty=%B
+            if ($msg -notmatch '\[skip release\]') {
+              $base = [version]((Get-Content version.txt -Raw).Trim())
+              $last = git tag --list 'v*' --sort=-v:refname | Select-Object -First 1
+              if ($last -match '^v(\d+)\.(\d+)\.(\d+)$') {
+                $current = [version]"$($Matches[1]).$($Matches[2])"
+                if ($base -gt $current) {
+                  $version = "$($base.Major).$($base.Minor).0"
+                } else {
+                  $version = "$($Matches[1]).$($Matches[2]).$([int]$Matches[3] + 1)"
+                }
+              } else {
+                $version = "$($base.Major).$($base.Minor).0"
+              }
+              $release = 'true'
+            }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "release=$release" >> $env:GITHUB_OUTPUT
+          Write-Host "Versie $version (release: $release)"
+          # De versie komt in het programma (venstertitel) via Cargo.
+          (Get-Content Cargo.toml) -replace '(?m)^version = ".*"$', "version = `"$version`"" | Set-Content Cargo.toml
+
+      - run: cargo build --release -p showmate-app
+      - uses: actions/upload-artifact@v6
+        with:
+          name: showmate-windows
+          path: target/release/showmate.exe
+
+  # Bouwt de installer. Op `main` wordt daarbij een release gemaakt (zie "Versie bepalen").
+  installer:
+    needs: windows
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    # Per branch: releases op main wachten op elkaar en worden niet geannuleerd door
+    # builds van andere branches (die deelden eerst één groep en verdrongen de release).
+    concurrency:
+      group: installer-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # alle tags nodig om het volgende versienummer te bepalen
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
       # Versie = laatste tag `vX.Y.Z` met het laatste getal +1 (eerste release: 0.1.0).
       # Alleen een push naar main maakt een release; zet `[skip release]` in de commit-
       # boodschap om dat over te slaan. Andere builds krijgen versie 0.0.0 en geen release.

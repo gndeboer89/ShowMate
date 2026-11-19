@@ -1,0 +1,69 @@
+import { LineEdit, TextEdit, ComboBox, CheckBox, ScrollView, Palette } from "std-widgets.slint";
+
+export struct DestRow {
+    name: string,
+    host: string,
+    port: string,
+}
+
+export struct CommandRow {
+    name: string,
+    address: string,
+    args: string,
+}
+
+export struct KeyRow {
+    action: string,
+    key: string,
+    capturing: bool,
+}
+
+export component ToolButton inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <color> fill: #232b3a;
+    in property <length> font: 15px;
+    in property <bool> enabled: true;
+    callback clicked();
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: #3a4558;
+    opacity: enabled ? 1 : 0.4;
+    background: touch.has-hover && enabled ? fill.brighter(0.15) : fill;
+    HorizontalLayout {
+        alignment: center;
+        spacing: 8px;
+        if root.icon.width > 0: Image {
+            source: root.icon; colorize: white; image-fit: contain;
+            width: root.font + 4px; height: root.font + 4px; y: (parent.height - self.height) / 2;
+        }
+        if root.text != "": Text { text: root.text; color: white; font-size: root.font; font-weight: 600; vertical-alignment: center; }
+    }
+    touch := TouchArea { clicked => { if (root.enabled) { root.clicked(); } } }
+}
+
+export component Field inherits VerticalLayout {
+    in property <string> label;
+    in property <bool> valid: true;
+    spacing: 3px;
+    Text { text: root.label; color: root.valid ? #9aa6ba : #f87171; font-size: 12px; }
+    @children
+}
+
+export component HeaderCell inherits Text {
+    horizontal-alignment: left;
+    min-width: 0px;
+    color: #9aa6ba;
+    font-size: 13px;
+    vertical-alignment: center;
+}
+
+export component Cell inherits Text {
+    horizontal-alignment: left;
+    min-width: 0px;
+    color: white;
+    font-size: 14px;
+    vertical-alignment: center;
+    overflow: elide;
+}
+

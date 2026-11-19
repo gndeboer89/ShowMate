@@ -8,14 +8,6 @@ msgid "+ Audio"
 msgstr "+ Audio"
 
 msgctxt "MainWindow"
-msgid "+ Bestemming"
-msgstr "+ Destination"
-
-msgctxt "MainWindow"
-msgid "+ Commando"
-msgstr "+ Command"
-
-msgctxt "MainWindow"
 msgid "+ MIDI"
 msgstr "+ MIDI"
 
@@ -28,16 +20,12 @@ msgid "+ Video"
 msgstr "+ Video"
 
 msgctxt "MainWindow"
-msgid "Alles op standaard"
-msgstr "Reset all to default"
+msgid "Afsluiten"
+msgstr "Exit"
 
 msgctxt "MainWindow"
-msgid "Annuleer"
-msgstr "Cancel"
-
-msgctxt "MainWindow"
-msgid "Argumenten"
-msgstr "Arguments"
+msgid "Algemeen…"
+msgstr "General…"
 
 msgctxt "MainWindow"
 msgid "Argumenten (bv. f:0.7 5 true)"
@@ -52,12 +40,16 @@ msgid "Audio"
 msgstr "Audio"
 
 msgctxt "MainWindow"
-msgid "Bestand"
-msgstr "File"
+msgid "Audio-cue"
+msgstr "Audio cue"
 
 msgctxt "MainWindow"
-msgid "Bestanden kopiëren naar de media-map van de show"
-msgstr "Copy files to the show's media folder"
+msgid "Audio…"
+msgstr "Audio…"
+
+msgctxt "MainWindow"
+msgid "Bestand"
+msgstr "File"
 
 msgctxt "MainWindow"
 msgid "Bestemming"
@@ -66,6 +58,10 @@ msgstr "Destination"
 msgctxt "MainWindow"
 msgid "Bestemming — onbekend"
 msgstr "Destination — unknown"
+
+msgctxt "MainWindow"
+msgid "Bewerken"
+msgstr "Edit"
 
 msgctxt "MainWindow"
 msgid "Bladeren…"
@@ -84,8 +80,20 @@ msgid "Controller (0–127)"
 msgstr "Controller (0–127)"
 
 msgctxt "MainWindow"
+msgid "Cue dupliceren"
+msgstr "Duplicate cue"
+
+msgctxt "MainWindow"
 msgid "Cue naam"
 msgstr "Cue name"
+
+msgctxt "MainWindow"
+msgid "Cue toevoegen"
+msgstr "Add cue"
+
+msgctxt "MainWindow"
+msgid "Cue verwijderen"
+msgstr "Delete cue"
 
 msgctxt "MainWindow"
 msgid "Delay"
@@ -98,10 +106,6 @@ msgstr "Delay (s or mm:ss)"
 msgctxt "MainWindow"
 msgid "Delay — ongeldig"
 msgstr "Delay — invalid"
-
-msgctxt "MainWindow"
-msgid "Druk een toets…"
-msgstr "Press a key…"
 
 msgctxt "MainWindow"
 msgid "Duur"
@@ -156,12 +160,12 @@ msgid "HERVAT"
 msgstr "RESUME"
 
 msgctxt "MainWindow"
-msgid "Herhaal (loop)"
-msgstr "Repeat (loop)"
+msgid "Help"
+msgstr "Help"
 
 msgctxt "MainWindow"
-msgid "IP-adres of hostnaam"
-msgstr "IP address or hostname"
+msgid "Herhaal (loop)"
+msgstr "Repeat (loop)"
 
 msgctxt "MainWindow"
 msgid "Instellingen"
@@ -184,8 +188,12 @@ msgid "Loop (herhalen)"
 msgstr "Loop (repeat)"
 
 msgctxt "MainWindow"
-msgid "MIDI-uitgang"
-msgstr "MIDI output"
+msgid "MIDI-cue"
+msgstr "MIDI cue"
+
+msgctxt "MainWindow"
+msgid "MIDI…"
+msgstr "MIDI…"
 
 msgctxt "MainWindow"
 msgid "Media"
@@ -194,22 +202,6 @@ msgstr "Media"
 msgctxt "MainWindow"
 msgid "Media / doel"
 msgstr "Media / target"
-
-msgctxt "MainWindow"
-msgid "Monitor 1"
-msgstr "Monitor 1"
-
-msgctxt "MainWindow"
-msgid "Monitor 2"
-msgstr "Monitor 2"
-
-msgctxt "MainWindow"
-msgid "Monitor 3"
-msgstr "Monitor 3"
-
-msgctxt "MainWindow"
-msgid "Monitor 4"
-msgstr "Monitor 4"
 
 msgctxt "MainWindow"
 msgid "Naam"
@@ -232,12 +224,20 @@ msgid "OSC-adres"
 msgstr "OSC address"
 
 msgctxt "MainWindow"
-msgid "OSC-bestemmingen (bv. lichttafel)"
-msgstr "OSC destinations (e.g. lighting desk)"
+msgid "OSC-cue"
+msgstr "OSC cue"
 
 msgctxt "MainWindow"
-msgid "OSC-commando's (adres en argumenten, te kiezen per cue)"
-msgstr "OSC commands (address and arguments, selectable per cue)"
+msgid "OSC…"
+msgstr "OSC…"
+
+msgctxt "MainWindow"
+msgid "Ongedaan maken"
+msgstr "Undo"
+
+msgctxt "MainWindow"
+msgid "Opnieuw"
+msgstr "Redo"
 
 msgctxt "MainWindow"
 msgid "Opslaan"
@@ -248,12 +248,12 @@ msgid "Opslaan als…"
 msgstr "Save as…"
 
 msgctxt "MainWindow"
-msgid "Opslaan en sluiten"
-msgstr "Save and close"
-
-msgctxt "MainWindow"
 msgid "Output"
 msgstr "Output"
+
+msgctxt "MainWindow"
+msgid "Over ShowMate"
+msgstr "About ShowMate"
 
 msgctxt "MainWindow"
 msgid "PANIC"
@@ -264,10 +264,6 @@ msgid "PAUSE"
 msgstr "PAUSE"
 
 msgctxt "MainWindow"
-msgid "Pad naar mpv (leeg = automatisch zoeken)"
-msgstr "Path to mpv (empty = find automatically)"
-
-msgctxt "MainWindow"
 msgid "Parallel"
 msgstr "Parallel"
 
@@ -276,20 +272,24 @@ msgid "Parallel (tegelijk)"
 msgstr "Parallel (all at once)"
 
 msgctxt "MainWindow"
-msgid "Poort"
-msgstr "Port"
+msgid "Pauze / hervat"
+msgstr "Pause / resume"
 
 msgctxt "MainWindow"
 msgid "Programma (0–127)"
 msgstr "Program (0–127)"
 
 msgctxt "MainWindow"
-msgid "Recent"
-msgstr "Recent"
+msgid "Recente shows"
+msgstr "Recent shows"
 
 msgctxt "MainWindow"
 msgid "Reset"
 msgstr "Reset"
+
+msgctxt "MainWindow"
+msgid "Reset (terug naar het begin)"
+msgstr "Reset (back to the start)"
 
 msgctxt "MainWindow"
 msgid "STOP"
@@ -300,6 +300,10 @@ msgid "Selecteer een cue om te bewerken"
 msgstr "Select a cue to edit"
 
 msgctxt "MainWindow"
+msgid "Show"
+msgstr "Show"
+
+msgctxt "MainWindow"
 msgid "Show openen…"
 msgstr "Open show…"
 
@@ -308,16 +312,12 @@ msgid "Snelheid (0–127)"
 msgstr "Velocity (0–127)"
 
 msgctxt "MainWindow"
-msgid "Sneltoetsen"
-msgstr "Keyboard shortcuts"
+msgid "Sneltoetsen…"
+msgstr "Shortcuts…"
 
 msgctxt "MainWindow"
 msgid "Soort"
 msgstr "Type"
-
-msgctxt "MainWindow"
-msgid "Standaard"
-msgstr "Default"
 
 msgctxt "MainWindow"
 msgid "Start"
@@ -340,14 +340,6 @@ msgid "Type"
 msgstr "Type"
 
 msgctxt "MainWindow"
-msgid "Uitvoer op volledig scherm (anders in een gewoon venster)"
-msgstr "Output fullscreen (otherwise in a normal window)"
-
-msgctxt "MainWindow"
-msgid "Vernieuwen"
-msgstr "Refresh"
-
-msgctxt "MainWindow"
 msgid "Verstuurt: "
 msgstr "Sends: "
 
@@ -356,8 +348,12 @@ msgid "Video"
 msgstr "Video"
 
 msgctxt "MainWindow"
-msgid "Video (schermen)"
-msgstr "Video (screens)"
+msgid "Video-cue"
+msgstr "Video cue"
+
+msgctxt "MainWindow"
+msgid "Video…"
+msgstr "Video…"
 
 msgctxt "MainWindow"
 msgid "Volgende cue"
@@ -376,17 +372,177 @@ msgid "Waarde (0–127)"
 msgstr "Value (0–127)"
 
 msgctxt "MainWindow"
-msgid "Wijzig"
-msgstr "Change"
-
-msgctxt "MainWindow"
-msgid "Wis"
-msgstr "Clear"
-
-msgctxt "MainWindow"
 msgid "geen video actief"
 msgstr "no video active"
 
-msgctxt "MainWindow"
+msgctxt "SettingsWindow"
+msgid "+ Bestemming"
+msgstr "+ Destination"
+
+msgctxt "SettingsWindow"
+msgid "+ Commando"
+msgstr "+ Command"
+
+msgctxt "SettingsWindow"
+msgid "Algemeen"
+msgstr "General"
+
+msgctxt "SettingsWindow"
+msgid "Alles op standaard"
+msgstr "Reset all to default"
+
+msgctxt "SettingsWindow"
+msgid "Annuleer"
+msgstr "Cancel"
+
+msgctxt "SettingsWindow"
+msgid "Argumenten"
+msgstr "Arguments"
+
+msgctxt "SettingsWindow"
+msgid "Audio"
+msgstr "Audio"
+
+msgctxt "SettingsWindow"
+msgid "Bestanden die je toevoegt worden dan op de achtergrond naar de map 'media' naast de show gekopieerd, zodat je de showmap kunt meenemen."
+msgstr "Files you add are then copied in the background to the 'media' folder next to the show, so you can take the show folder with you."
+
+msgctxt "SettingsWindow"
+msgid "Bestanden kopiëren naar de media-map van de show"
+msgstr "Copy files to the show's media folder"
+
+msgctxt "SettingsWindow"
+msgid "Bladeren…"
+msgstr "Browse…"
+
+msgctxt "SettingsWindow"
+msgid "Cues kiezen zelf een uitgangspaar met het veld Output (Audio 1+2, Audio 3+4, …). De uitgang hierboven geldt voor alle audio."
+msgstr "Cues pick their own output pair with the Output field (Audio 1+2, Audio 3+4, …). The device above applies to all audio."
+
+msgctxt "SettingsWindow"
+msgid "Druk een toets…"
+msgstr "Press a key…"
+
+msgctxt "SettingsWindow"
+msgid "IP-adres of hostnaam"
+msgstr "IP address or hostname"
+
+msgctxt "SettingsWindow"
+msgid "Instellingen"
+msgstr "Settings"
+
+msgctxt "SettingsWindow"
+msgid "MIDI"
+msgstr "MIDI"
+
+msgctxt "SettingsWindow"
+msgid "MIDI-uitgang"
+msgstr "MIDI output"
+
+msgctxt "SettingsWindow"
+msgid "Monitor 1"
+msgstr "Monitor 1"
+
+msgctxt "SettingsWindow"
+msgid "Monitor 2"
+msgstr "Monitor 2"
+
+msgctxt "SettingsWindow"
+msgid "Monitor 3"
+msgstr "Monitor 3"
+
+msgctxt "SettingsWindow"
+msgid "Monitor 4"
+msgstr "Monitor 4"
+
+msgctxt "SettingsWindow"
+msgid "Naam"
+msgstr "Name"
+
+msgctxt "SettingsWindow"
+msgid "OSC"
+msgstr "OSC"
+
+msgctxt "SettingsWindow"
+msgid "OSC-adres"
+msgstr "OSC address"
+
+msgctxt "SettingsWindow"
+msgid "OSC-bestemmingen (bv. lichttafel)"
+msgstr "OSC destinations (e.g. lighting desk)"
+
+msgctxt "SettingsWindow"
+msgid "OSC-commando's (adres en argumenten, te kiezen per cue)"
+msgstr "OSC commands (address and arguments, selectable per cue)"
+
+msgctxt "SettingsWindow"
+msgid "Pad naar mpv (leeg = automatisch zoeken)"
+msgstr "Path to mpv (empty = find automatically)"
+
+msgctxt "SettingsWindow"
+msgid "Poort"
+msgstr "Port"
+
+msgctxt "SettingsWindow"
+msgid "Sluiten"
+msgstr "Close"
+
+msgctxt "SettingsWindow"
+msgid "Sneltoetsen"
+msgstr "Keyboard shortcuts"
+
+msgctxt "SettingsWindow"
+msgid "Standaard"
+msgstr "Default"
+
+msgctxt "SettingsWindow"
+msgid "Testtoon uitgang 1+2"
+msgstr "Test tone output 1+2"
+
+msgctxt "SettingsWindow"
+msgid "Testtoon uitgang 3+4"
+msgstr "Test tone output 3+4"
+
+msgctxt "SettingsWindow"
+msgid "Testtoon uitgang 5+6"
+msgstr "Test tone output 5+6"
+
+msgctxt "SettingsWindow"
+msgid "Uitgang (afspeelapparaat)"
+msgstr "Output (playback device)"
+
+msgctxt "SettingsWindow"
+msgid "Uitgang testen"
+msgstr "Test output"
+
+msgctxt "SettingsWindow"
+msgid "Uitvoer op volledig scherm (anders in een gewoon venster)"
+msgstr "Output fullscreen (otherwise in a normal window)"
+
+msgctxt "SettingsWindow"
+msgid "Vernieuwen"
+msgstr "Refresh"
+
+msgctxt "SettingsWindow"
+msgid "Video"
+msgstr "Video"
+
+msgctxt "SettingsWindow"
+msgid "Video (schermen)"
+msgstr "Video (screens)"
+
+msgctxt "SettingsWindow"
+msgid "Wijzig"
+msgstr "Change"
+
+msgctxt "SettingsWindow"
+msgid "Wijzigingen aan video gelden zodra je dit venster sluit; de spelers worden dan opnieuw gestart."
+msgstr "Video changes take effect when you close this window; the players are then restarted."
+
+msgctxt "SettingsWindow"
+msgid "Wis"
+msgstr "Clear"
+
+msgctxt "SettingsWindow"
 msgid "— geen —"
 msgstr "— none —"

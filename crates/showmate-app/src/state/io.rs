@@ -2,7 +2,7 @@
 
 use super::{AppState, kind_key};
 use crate::settings::{self, OscCommand, OscDestination};
-use crate::{CommandRow, DestRow, MainWindow};
+use crate::{CommandRow, DestRow, MainWindow, SettingsWindow};
 use showmate_core::{Cue, CueKind, MidiKind};
 use showmate_io::{MidiOut, format_args as format_osc_args, list_midi_ports, parse_args};
 use slint::{ModelRc, SharedString, VecModel};
@@ -273,15 +273,16 @@ impl AppState {
         }
     }
 
+    /// Bereidt het instellingenvenster voor (de pagina kiest `main.rs`).
     pub fn open_settings(&mut self) {
-        self.settings_open = true;
         self.settings_note.clear();
         self.midi_refresh();
+        self.audio_refresh();
         self.fill_settings = true;
     }
 
+    /// Past de instellingen toe en bewaart ze (bij sluiten van het instellingenvenster).
     pub fn close_settings(&mut self) {
-        self.settings_open = false;
         self.capturing = None;
         self.osc.forget();
         self.connect_midi();
@@ -303,6 +304,76 @@ impl AppState {
         };
         self.fill_settings = true;
         self.fill_inspector = true;
+    }
+
+    // ---- audio-uitgang ---------------------------------------------------------------
+
+    pub fn audio_refresh(&mut self) {
+        self.audio_devices = showmate_audio::list_output_devices();
+        self.fill_names = true;
+    }
+
+    /// Kiest een uitvoerapparaat: index 0 = standaardapparaat van het systeem.
+    pub fn audio_selected(&mut self, index: i32) {
+        let device = usize::try_from(index)
+            .ok()
+            .and_then(|i| i.checked_sub(1))
+            .and_then(|i| self.audio_devices.get(i).cloned());
+        self.settings.audio.device = device;
+        self.apply_audio_settings();
+        self.fill_names = true;
+    }
+
+    /// Opent de audio-uitgang opnieuw als het gekozen apparaat is gewijzigd.
+    fn apply_audio_settings(&mut self) {
+        if self.settings.audio.device == self.audio_device_open {
+            return;
+        }
+        if let Some(a) = self.audio.as_mut() {
+            let _ = a.panic(); // niets mag doorspelen op het oude apparaat
+        }
+        let wanted = self.settings.audio.device.clone();
+        let (audio, info) = super::open_audio(wanted.as_deref());
+        self.audio = audio;
+        self.audio_info = info;
+        self.audio_device_open = wanted;
+        // Geluiden zijn omgezet naar de samplerate van het oude apparaat.
+        self.cache = showmate_audio::ClipCache::new(self.audio.as_ref().map_or(
+            super::FALLBACK_RATE,
+            showmate_audio::AudioOutput::sample_rate,
+        ));
+        self.preload_all();
+        self.wave_reset = true;
+    }
+
+    /// Speelt een korte testtoon op uitgangspaar `pair` (0 = 1+2, 1 = 3+4, …).
+    pub fn audio_test(&mut self, pair: i32) {
+        let Ok(pair) = usize::try_from(pair) else {
+            return;
+        };
+        let Some(a) = self.audio.as_mut() else {
+            self.message = t!("geen audio-apparaat", "no audio device");
+            return;
+        };
+        let freq = [440.0, 660.0, 880.0].get(pair).copied().unwrap_or(440.0);
+        let clip = std::sync::Arc::new(showmate_audio::AudioClip::test_tone(
+            a.sample_rate(),
+            0.8,
+            freq,
+        ));
+        let result = a.play(showmate_audio::VoiceParams {
+            id: u64::MAX - pair as u64,
+            clip,
+            gain_db: 0.0,
+            fade_in: std::time::Duration::ZERO,
+            fade_out: std::time::Duration::ZERO,
+            looping: false,
+            max_duration: None,
+            out_pair: pair,
+        });
+        if let Err(e) = result {
+            self.message = e.to_string();
+        }
     }
 
     /// Past in alle cues een naam aan die naar een hernoemde bestemming/commando verwees.
@@ -469,18 +540,31 @@ impl AppState {
     // ---- UI vullen -----------------------------------------------------------------
 
     /// Lijsten en vlaggen die het instellingenvenster en de inspector-keuzelijsten voeden.
-    pub(super) fn fill_settings_ui(&self, ui: &MainWindow, rebuild_rows: bool) {
+    /// Lijsten in het hoofdvenster die van de instellingen afhangen (inspector en menu's).
+    pub(super) fn fill_main_lists(&self, ui: &MainWindow) {
         let s = &self.settings;
-        ui.set_settings_open(self.settings_open);
-        ui.set_copy_media(self.settings.copy_media);
-        ui.set_video_fullscreen(self.settings.video.fullscreen);
+        ui.set_dest_names(strings(s.osc.destinations.iter().map(|d| d.name.clone())));
+        ui.set_cmd_names(strings(
+            std::iter::once(OWN_COMMAND.to_string())
+                .chain(s.osc.commands.iter().map(|c| c.name.clone())),
+        ));
+        ui.set_recent(strings(self.recent_labels()));
+        ui.set_key_hints(strings(
+            crate::keys::ALL.iter().map(|a| self.shortcuts.key_of(*a)),
+        ));
+    }
+
+    /// Vult het instellingenvenster.
+    pub(super) fn fill_settings_ui(&self, ui: &SettingsWindow, rebuild_rows: bool) {
+        let s = &self.settings;
+        ui.set_copy_media(s.copy_media);
+        ui.set_video_fullscreen(s.video.fullscreen);
         let screens: Vec<i32> = (0..4)
-            .map(|n| self.settings.video.screens.get(n).copied().unwrap_or(n) as i32)
+            .map(|n| s.video.screens.get(n).copied().unwrap_or(n) as i32)
             .collect();
         ui.set_screen_indexes(ModelRc::new(VecModel::from(screens)));
         ui.set_mpv_path(
-            self.settings
-                .video
+            s.video
                 .mpv_path
                 .as_ref()
                 .map(|p| p.display().to_string())
@@ -494,15 +578,30 @@ impl AppState {
             }
             .into(),
         );
-        ui.set_recent(strings(self.recent_labels()));
         ui.set_keys(ModelRc::new(VecModel::from(self.key_rows())));
-        ui.set_language_index(i32::from(self.settings.language == "en"));
-        ui.set_settings_note(self.settings_note.as_str().into());
-        ui.set_dest_names(strings(s.osc.destinations.iter().map(|d| d.name.clone())));
-        ui.set_cmd_names(strings(
-            std::iter::once(OWN_COMMAND.to_string())
-                .chain(s.osc.commands.iter().map(|c| c.name.clone())),
-        ));
+        ui.set_language_index(i32::from(s.language == "en"));
+        ui.set_note(self.settings_note.as_str().into());
+
+        // Audio: index 0 = standaardapparaat; een eerder gekozen maar ontbrekend apparaat blijft zichtbaar.
+        let mut devices = vec![t!(
+            "(standaardapparaat van het systeem)",
+            "(system default device)"
+        )];
+        devices.extend(self.audio_devices.iter().cloned());
+        if let Some(sel) = s.audio.device.as_ref().filter(|d| !devices.contains(d)) {
+            devices.push(sel.clone());
+        }
+        let audio_index = s
+            .audio
+            .device
+            .as_ref()
+            .and_then(|d| devices.iter().position(|x| x == d))
+            .unwrap_or(0);
+        ui.set_audio_index(audio_index as i32);
+        ui.set_audio_devices(strings(devices));
+        ui.set_audio_info(self.audio_info.as_str().into());
+        ui.set_audio_channels(self.audio.as_ref().map_or(2, |a| i32::from(a.channels())));
+
         let mut ports = vec![MIDI_NONE.to_string()];
         ports.extend(self.midi_ports.iter().cloned());
         // Een eerder gekozen poort die nu ontbreekt blijft zichtbaar.

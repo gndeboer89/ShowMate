@@ -23,4 +23,4 @@ pub use mixer::{Command, MAX_VOICES, Mixer, Voice, VoiceParams, db_to_gain};
 pub use output::parse_output_pair;
 
 #[cfg(feature = "device")]
-pub use device::AudioOutput;
+pub use device::{AudioOutput, default_output_name, list_output_devices};

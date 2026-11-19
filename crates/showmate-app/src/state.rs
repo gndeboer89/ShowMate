@@ -7,7 +7,7 @@ mod workflow;
 
 use crate::i18n::tr;
 use crate::settings::Settings;
-use crate::{CueRow, MainWindow};
+use crate::{CueRow, MainWindow, SettingsWindow};
 use showmate_audio::{
     AudioClip, AudioOutput, ClipCache, ClipStatus, VoiceParams, parse_output_pair,
 };
@@ -65,7 +65,9 @@ pub struct AppState {
     midi_list_error: String,
     midi_ok: bool,
     osc_args_error: String,
-    settings_open: bool,
+    audio_devices: Vec<String>,
+    /// Apparaat waarmee `audio` nu geopend is (om wijzigingen te herkennen).
+    audio_device_open: Option<String>,
     settings_note: String,
     /// Instellingenlijsten en keuzelijsten opnieuw vullen (met/zonder rijen te vervangen).
     fill_settings: bool,
@@ -80,6 +82,37 @@ pub struct AppState {
 
 /// Fallback-samplerate voor de cache als er geen audio-apparaat is.
 const FALLBACK_RATE: u32 = 48_000;
+
+/// Opent de audio-uitgang (`None` = standaardapparaat) en geeft een beschrijving terug.
+/// Bestaat het gekozen apparaat niet meer, dan wordt het standaardapparaat gebruikt.
+fn open_audio(device: Option<&str>) -> (Option<AudioOutput>, String) {
+    let describe = |a: &AudioOutput| {
+        format!(
+            "{} ({} Hz, {} kan.)",
+            a.device_name(),
+            a.sample_rate(),
+            a.channels()
+        )
+    };
+    match AudioOutput::open(device) {
+        Ok(a) => {
+            let info = describe(&a);
+            (Some(a), info)
+        }
+        Err(e) if device.is_some() => match AudioOutput::open(None) {
+            Ok(a) => {
+                let info = t!(
+                    "{} (gekozen apparaat niet beschikbaar: {e})",
+                    "{} (chosen device unavailable: {e})",
+                    describe(&a)
+                );
+                (Some(a), info)
+            }
+            Err(e2) => (None, t!("geen audio: {e2}", "no audio: {e2}")),
+        },
+        Err(e) => (None, t!("geen audio: {e}", "no audio: {e}")),
+    }
+}
 
 /// Welke show bij het starten opent: `SHOWMATE_FILE` (ontwikkeling), anders de laatst geopende
 /// (als die nog bestaat), anders `show.showmate` in de programmamap.
@@ -171,18 +204,8 @@ impl AppState {
                 "Unsaved changes recovered from the automatic copy; save to keep them"
             );
         }
-        let (audio, audio_info) = match AudioOutput::open_default() {
-            Ok(a) => {
-                let info = format!(
-                    "{} ({} Hz, {} kan.)",
-                    a.device_name(),
-                    a.sample_rate(),
-                    a.channels()
-                );
-                (Some(a), info)
-            }
-            Err(e) => (None, t!("geen audio: {e}", "no audio: {e}")),
-        };
+        let audio_device_open = settings.audio.device.clone();
+        let (audio, audio_info) = open_audio(audio_device_open.as_deref());
         let video_cfg = settings.video.to_config();
         let video_cfg_key = format!("{video_cfg:?}");
         let video = VideoOutput::new(video_cfg);
@@ -235,7 +258,8 @@ impl AppState {
             midi_list_error: String::new(),
             midi_ok: true,
             osc_args_error: String::new(),
-            settings_open: false,
+            audio_devices: Vec::new(),
+            audio_device_open,
             settings_note: String::new(),
             fill_settings: false,
             fill_names: false,
@@ -685,16 +709,18 @@ impl AppState {
     // ---- UI-synchronisatie -------------------------------------------
 
     /// Na elke gebruikersactie.
-    pub fn after_edit(&mut self, ui: &MainWindow) {
+    pub fn after_edit(&mut self, ui: &MainWindow, win: &SettingsWindow) {
         self.refresh_live(ui);
         if std::mem::take(&mut self.fill_inspector) {
             self.fill_inspector(ui);
         }
         if std::mem::take(&mut self.fill_settings) {
-            self.fill_settings_ui(ui, true);
+            self.fill_main_lists(ui);
+            self.fill_settings_ui(win, true);
             self.fill_names = false;
         } else if std::mem::take(&mut self.fill_names) {
-            self.fill_settings_ui(ui, false);
+            self.fill_main_lists(ui);
+            self.fill_settings_ui(win, false);
         }
     }
 
@@ -745,11 +771,12 @@ impl AppState {
         }
     }
 
-    pub fn refresh_all(&mut self, ui: &MainWindow) {
+    pub fn refresh_all(&mut self, ui: &MainWindow, win: &SettingsWindow) {
         ui.set_rows(ModelRc::from(self.rows.clone()));
         self.refresh_live(ui);
         self.fill_inspector(ui);
-        self.fill_settings_ui(ui, true);
+        self.fill_main_lists(ui);
+        self.fill_settings_ui(win, true);
     }
 
     fn refresh_live(&mut self, ui: &MainWindow) {

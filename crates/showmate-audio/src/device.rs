@@ -32,11 +32,24 @@ pub struct AudioOutput {
 impl AudioOutput {
     /// Opent het standaard uitvoerapparaat.
     pub fn open_default() -> Result<Self, AudioError> {
+        Self::open(None)
+    }
+
+    /// Opent het uitvoerapparaat met deze naam (zie [`list_output_devices`]); `None` = het
+    /// standaardapparaat van het systeem.
+    pub fn open(device_name: Option<&str>) -> Result<Self, AudioError> {
         let dev_err = |e: &dyn std::fmt::Display| AudioError::Device(e.to_string());
         let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .ok_or_else(|| AudioError::Device("geen standaard uitvoerapparaat".into()))?;
+        let device = match device_name {
+            None => host
+                .default_output_device()
+                .ok_or_else(|| AudioError::Device("geen standaard uitvoerapparaat".into()))?,
+            Some(wanted) => host
+                .output_devices()
+                .map_err(|e| dev_err(&e))?
+                .find(|d| d.name().is_ok_and(|n| n == wanted))
+                .ok_or_else(|| AudioError::Device(format!("apparaat '{wanted}' niet gevonden")))?,
+        };
         let device_name = device.name().unwrap_or_else(|_| "onbekend apparaat".into());
         let supported = device.default_output_config().map_err(|e| dev_err(&e))?;
         let format = supported.sample_format();
@@ -153,6 +166,21 @@ impl AudioOutput {
         }
         ids
     }
+}
+
+/// Namen van de beschikbare uitvoerapparaten.
+pub fn list_output_devices() -> Vec<String> {
+    cpal::default_host()
+        .output_devices()
+        .map(|devices| devices.filter_map(|d| d.name().ok()).collect())
+        .unwrap_or_default()
+}
+
+/// Naam van het standaardapparaat van het systeem.
+pub fn default_output_name() -> Option<String> {
+    cpal::default_host()
+        .default_output_device()
+        .and_then(|d| d.name().ok())
 }
 
 struct Ctx {

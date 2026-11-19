@@ -281,9 +281,6 @@ impl AppState {
 
     /// Bestanden die op het venster zijn gesleept worden nieuwe cues (een `.showmate`-bestand wordt geopend).
     pub fn add_dropped_files(&mut self, paths: Vec<PathBuf>) {
-        if self.settings_open {
-            return;
-        }
         for path in paths {
             let is_show = path
                 .extension()

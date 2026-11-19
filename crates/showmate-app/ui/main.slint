@@ -1,22 +1,8 @@
 import { LineEdit, TextEdit, ComboBox, CheckBox, ScrollView, Palette } from "std-widgets.slint";
+import { DestRow, CommandRow, KeyRow, ToolButton, Field, HeaderCell, Cell } from "common.slint";
+import { SettingsWindow } from "settings.slint";
 
-export struct DestRow {
-    name: string,
-    host: string,
-    port: string,
-}
-
-export struct CommandRow {
-    name: string,
-    address: string,
-    args: string,
-}
-
-export struct KeyRow {
-    action: string,
-    key: string,
-    capturing: bool,
-}
+export { DestRow, CommandRow, KeyRow, SettingsWindow }
 
 export struct CueRow {
     number: int,
@@ -35,55 +21,6 @@ export struct CueRow {
     playhead: bool,
 }
 
-component ToolButton inherits Rectangle {
-    in property <string> text;
-    in property <image> icon;
-    in property <color> fill: #232b3a;
-    in property <length> font: 15px;
-    in property <bool> enabled: true;
-    callback clicked();
-    border-radius: 8px;
-    border-width: 1px;
-    border-color: #3a4558;
-    opacity: enabled ? 1 : 0.4;
-    background: touch.has-hover && enabled ? fill.brighter(0.15) : fill;
-    HorizontalLayout {
-        alignment: center;
-        spacing: 8px;
-        if root.icon.width > 0: Image {
-            source: root.icon; colorize: white; image-fit: contain;
-            width: root.font + 4px; height: root.font + 4px; y: (parent.height - self.height) / 2;
-        }
-        if root.text != "": Text { text: root.text; color: white; font-size: root.font; font-weight: 600; vertical-alignment: center; }
-    }
-    touch := TouchArea { clicked => { if (root.enabled) { root.clicked(); } } }
-}
-
-component Field inherits VerticalLayout {
-    in property <string> label;
-    in property <bool> valid: true;
-    spacing: 3px;
-    Text { text: root.label; color: root.valid ? #9aa6ba : #f87171; font-size: 12px; }
-    @children
-}
-
-component HeaderCell inherits Text {
-    horizontal-alignment: left;
-    min-width: 0px;
-    color: #9aa6ba;
-    font-size: 13px;
-    vertical-alignment: center;
-}
-
-component Cell inherits Text {
-    horizontal-alignment: left;
-    min-width: 0px;
-    color: white;
-    font-size: 14px;
-    vertical-alignment: center;
-    overflow: elide;
-}
-
 export component MainWindow inherits Window {
     in property <string> window-title: "ShowMate";
     title: root.window-title;
@@ -93,6 +30,69 @@ export component MainWindow inherits Window {
     min-width: 960px;
     min-height: 820px;
     background: #0e1420;
+
+    pure function hint(i: int) -> string {
+        root.key-hints[i] == "" ? "" : "      " + root.key-hints[i]
+    }
+
+    MenuBar {
+        Menu {
+            title: @tr("Bestand");
+            MenuItem { title: @tr("Nieuwe show…") + hint(12); activated => { root.file-new(); } }
+            MenuItem { title: @tr("Show openen…") + hint(13); activated => { root.file-open(); } }
+            Menu {
+                title: @tr("Recente shows");
+                for r[i] in root.recent: MenuItem { title: r; activated => { root.open-recent(i); } }
+            }
+            MenuSeparator {}
+            MenuItem { title: @tr("Opslaan") + hint(8); activated => { root.save(); } }
+            MenuItem { title: @tr("Opslaan als…") + hint(14); activated => { root.file-save-as(); } }
+            MenuSeparator {}
+            MenuItem { title: @tr("Afsluiten"); activated => { root.quit-app(); } }
+        }
+        Menu {
+            title: @tr("Bewerken");
+            MenuItem { title: @tr("Ongedaan maken") + hint(5); activated => { root.undo(); } }
+            MenuItem { title: @tr("Opnieuw") + hint(6); activated => { root.redo(); } }
+            MenuSeparator {}
+            MenuItem { title: @tr("Cue dupliceren") + hint(7); activated => { root.duplicate-cue(); } }
+            MenuItem { title: @tr("Cue verwijderen") + hint(9); activated => { root.remove-cue(); } }
+            MenuSeparator {}
+            Menu {
+                title: @tr("Cue toevoegen");
+                MenuItem { title: @tr("Audio-cue"); activated => { root.add-cue("audio"); } }
+                MenuItem { title: @tr("Video-cue"); activated => { root.add-cue("video"); } }
+                MenuItem { title: @tr("OSC-cue"); activated => { root.add-cue("osc"); } }
+                MenuItem { title: @tr("MIDI-cue"); activated => { root.add-cue("midi"); } }
+                MenuSeparator {}
+                MenuItem { title: @tr("Groep"); activated => { root.add-cue("group"); } }
+                MenuItem { title: @tr("Parallel"); activated => { root.add-cue("parallel"); } }
+                MenuItem { title: @tr("Loop"); activated => { root.add-cue("loop"); } }
+            }
+        }
+        Menu {
+            title: @tr("Show");
+            MenuItem { title: "GO" + hint(0); activated => { root.go(); } }
+            MenuItem { title: @tr("Pauze / hervat") + hint(1); activated => { root.pause(); } }
+            MenuItem { title: "STOP" + hint(2); activated => { root.stop(); } }
+            MenuItem { title: "PANIC" + hint(3); activated => { root.panic(); } }
+            MenuSeparator {}
+            MenuItem { title: @tr("Reset (terug naar het begin)") + hint(4); activated => { root.reset-show(); } }
+        }
+        Menu {
+            title: @tr("Instellingen");
+            MenuItem { title: @tr("Algemeen…"); activated => { root.open-settings(0); } }
+            MenuItem { title: @tr("Audio…"); activated => { root.open-settings(1); } }
+            MenuItem { title: @tr("Video…"); activated => { root.open-settings(2); } }
+            MenuItem { title: @tr("OSC…"); activated => { root.open-settings(3); } }
+            MenuItem { title: @tr("MIDI…"); activated => { root.open-settings(4); } }
+            MenuItem { title: @tr("Sneltoetsen…"); activated => { root.open-settings(5); } }
+        }
+        Menu {
+            title: @tr("Help");
+            MenuItem { title: @tr("Over ShowMate"); activated => { root.about(); } }
+        }
+    }
 
     // Live (elke tick)
     in property <string> timecode: "00:00:00.00";
@@ -158,23 +158,8 @@ export component MainWindow inherits Window {
     in property <[string]> dest-names;
     in property <[string]> cmd-names;
     in property <[string]> recent;
-    in-out property <bool> copy-media: true;
-    in-out property <bool> video-fullscreen;
-    in property <[int]> screen-indexes: [0, 1, 2, 3];
-    in-out property <string> mpv-path;
-    in property <string> video-status;
 
     // Instellingenvenster
-    in property <bool> settings-open;
-    in property <[DestRow]> dests;
-    in property <[KeyRow]> keys;
-    in property <[CommandRow]> cmds;
-    in property <[string]> midi-ports;
-    in-out property <int> midi-index;
-    in property <string> midi-status;
-    in property <string> settings-note;
-    in-out property <int> language-index;
-    callback language-selected(int);
 
     in property <bool> delay-ok: true;
     in property <bool> duration-ok: true;
@@ -202,16 +187,7 @@ export component MainWindow inherits Window {
     callback file-save-as();
     callback open-recent(int);
     callback browse-media();
-    callback copy-media-toggled(bool);
-    callback video-fullscreen-toggled(bool);
-    callback video-screen-selected(int, int);
-    callback mpv-path-edited(string);
-    callback browse-mpv();
     callback key-event(string, bool, bool, bool, bool) -> bool;
-    callback key-capture(int);
-    callback key-clear(int);
-    callback key-reset(int);
-    callback keys-reset-all();
     callback edit-group-mode(int);
     callback undo();
     callback redo();
@@ -225,16 +201,10 @@ export component MainWindow inherits Window {
     callback edit-midi-kind(int);
     callback edit-midi-num(int, string);
     callback test-cue();
-    callback open-settings();
-    callback close-settings();
-    callback dest-edited(int, int, string);
-    callback dest-add();
-    callback dest-remove(int);
-    callback cmd-edited(int, int, string);
-    callback cmd-add();
-    callback cmd-remove(int);
-    callback midi-selected(string);
-    callback midi-refresh();
+    callback open-settings(int);
+    callback quit-app();
+    callback about();
+    in property <[string]> key-hints;
     callback edit-volume(string);
     callback edit-fade-in(string);
     callback edit-fade-out(string);
@@ -297,8 +267,6 @@ export component MainWindow inherits Window {
                 ToolButton { text: @tr("Parallel"); width: 82px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("parallel"); } }
                 ToolButton { text: @tr("Loop"); width: 66px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("loop"); } }
                 Rectangle { horizontal-stretch: 1; }
-                ToolButton { icon: @image-url("icons/gear.svg"); text: @tr("Instellingen"); width: 136px; clicked => { root.open-settings(); } }
-                ToolButton { icon: @image-url("icons/folder.svg"); text: @tr("Bestand"); width: 120px; clicked => { file-popup.show(); } }
                 ToolButton { icon: @image-url("icons/arrow-up.svg"); width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-up(); } }
                 ToolButton { icon: @image-url("icons/arrow-down.svg"); width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-down(); } }
                 ToolButton { icon: @image-url("icons/trash.svg"); width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.remove-cue(); } }
@@ -508,137 +476,6 @@ export component MainWindow inherits Window {
                 }
             }
             Text { height: 18px; text: root.message; color: #fbbf24; font-size: 13px; vertical-alignment: center; overflow: elide; }
-        }
-    }
-
-    // Bestandsmenu
-    file-popup := PopupWindow {
-        x: root.width - 292px;
-        y: 156px;
-        width: 290px;
-        Rectangle {
-            background: #151c2a; border-radius: 8px; border-width: 1px; border-color: #3a4558;
-            VerticalLayout {
-                padding: 6px; spacing: 2px;
-                for item[i] in [@tr("Nieuwe show…"), @tr("Show openen…"), @tr("Opslaan"), @tr("Opslaan als…")]: Rectangle {
-                    height: 34px; border-radius: 5px;
-                    background: ptouch.has-hover ? #243049 : transparent;
-                    Text { x: 12px; text: item; color: white; font-size: 14px; vertical-alignment: center; }
-                    ptouch := TouchArea { clicked => {
-                        if (i == 0) { root.file-new(); }
-                        if (i == 1) { root.file-open(); }
-                        if (i == 2) { root.save(); }
-                        if (i == 3) { root.file-save-as(); }
-                    } }
-                }
-                if root.recent.length > 0: HorizontalLayout { padding-left: 12px; height: 22px; Text { text: @tr("Recent"); color: #9aa6ba; font-size: 12px; vertical-alignment: bottom; } }
-                for r[i] in root.recent: Rectangle {
-                    height: 30px; border-radius: 5px;
-                    background: rtouch.has-hover ? #243049 : transparent;
-                    Text { x: 12px; width: parent.width - 24px; text: r; color: #c5cee0; font-size: 13px; vertical-alignment: center; overflow: elide; }
-                    rtouch := TouchArea { clicked => { root.open-recent(i); } }
-                }
-            }
-        }
-    }
-
-    // Instellingenvenster (over alles heen)
-    if root.settings-open: Rectangle {
-        background: #000000b0;
-        TouchArea { }
-        capture-fs := FocusScope {
-            key-pressed(event) => {
-                if (root.key-event(event.text, event.modifiers.control, event.modifiers.shift, event.modifiers.alt, event.modifiers.meta)) { return accept; }
-                reject
-            }
-        }
-        Rectangle {
-            width: min(960px, parent.width - 40px);
-            height: min(640px, parent.height - 40px);
-            border-radius: 10px; border-width: 1px; border-color: #3a4558; background: #111826;
-            VerticalLayout {
-                padding: 18px; spacing: 10px;
-                Text { text: @tr("Instellingen"); color: white; font-size: 20px; font-weight: 700; }
-                ScrollView {
-                    vertical-stretch: 1;
-                    VerticalLayout {
-                        spacing: 8px; alignment: start;
-                        Text { text: "Taal / Language"; color: #c5cee0; font-size: 15px; font-weight: 700; }
-                        HorizontalLayout { alignment: start; height: 34px;
-                            ComboBox { width: 220px; model: ["Nederlands", "English"]; current-index <=> root.language-index; selected(v) => { root.language-selected(self.current-index); } } }
-                        CheckBox { text: @tr("Bestanden kopiëren naar de media-map van de show"); checked <=> root.copy-media; toggled => { root.copy-media-toggled(self.checked); } }
-
-                        Text { text: @tr("OSC-bestemmingen (bv. lichttafel)"); color: #c5cee0; font-size: 15px; font-weight: 700; }
-                        HorizontalLayout { spacing: 8px; padding-right: 48px; height: 22px;
-                            HeaderCell { text: @tr("Naam"); width: 180px; }
-                            HeaderCell { text: @tr("IP-adres of hostnaam"); horizontal-stretch: 1; }
-                            HeaderCell { text: @tr("Poort"); width: 90px; } }
-                        for d[i] in root.dests: HorizontalLayout {
-                            spacing: 8px; height: 34px;
-                            LineEdit { width: 180px; text: d.name; edited(t) => { root.dest-edited(i, 0, t); } }
-                            LineEdit { horizontal-stretch: 1; text: d.host; edited(t) => { root.dest-edited(i, 1, t); } }
-                            LineEdit { width: 90px; text: d.port; input-type: number; edited(t) => { root.dest-edited(i, 2, t); } }
-                            ToolButton { width: 40px; icon: @image-url("icons/close.svg"); font: 14px; clicked => { root.dest-remove(i); } }
-                        }
-                        HorizontalLayout { alignment: start; ToolButton { text: @tr("+ Bestemming"); width: 150px; height: 32px; font: 13px; clicked => { root.dest-add(); } } }
-
-                        Text { text: @tr("OSC-commando's (adres en argumenten, te kiezen per cue)"); color: #c5cee0; font-size: 15px; font-weight: 700; }
-                        HorizontalLayout { spacing: 8px; padding-right: 48px; height: 22px;
-                            HeaderCell { text: @tr("Naam"); width: 180px; }
-                            HeaderCell { text: @tr("OSC-adres"); horizontal-stretch: 1; }
-                            HeaderCell { text: @tr("Argumenten"); width: 200px; } }
-                        for c[i] in root.cmds: HorizontalLayout {
-                            spacing: 8px; height: 34px;
-                            LineEdit { width: 180px; text: c.name; edited(t) => { root.cmd-edited(i, 0, t); } }
-                            LineEdit { horizontal-stretch: 1; text: c.address; placeholder-text: "/eos/cue/1/fire"; edited(t) => { root.cmd-edited(i, 1, t); } }
-                            LineEdit { width: 200px; text: c.args; placeholder-text: "f:0.7"; edited(t) => { root.cmd-edited(i, 2, t); } }
-                            ToolButton { width: 40px; icon: @image-url("icons/close.svg"); font: 14px; clicked => { root.cmd-remove(i); } }
-                        }
-                        HorizontalLayout { alignment: start; ToolButton { text: @tr("+ Commando"); width: 150px; height: 32px; font: 13px; clicked => { root.cmd-add(); } } }
-
-                        Text { text: @tr("MIDI-uitgang"); color: #c5cee0; font-size: 15px; font-weight: 700; }
-                        HorizontalLayout { spacing: 8px; height: 34px;
-                            ComboBox { width: 320px; model: root.midi-ports; current-index <=> root.midi-index; selected(v) => { root.midi-selected(v); } }
-                            ToolButton { width: 110px; text: @tr("Vernieuwen"); font: 13px; clicked => { root.midi-refresh(); } }
-                            Text { text: root.midi-status; color: #9aa6ba; font-size: 13px; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; }
-                        }
-
-                        Text { text: @tr("Video (schermen)"); color: #c5cee0; font-size: 15px; font-weight: 700; }
-                        CheckBox { text: @tr("Uitvoer op volledig scherm (anders in een gewoon venster)"); checked <=> root.video-fullscreen; toggled => { root.video-fullscreen-toggled(self.checked); } }
-                        HorizontalLayout { spacing: 12px; height: 56px;
-                            for n in [0, 1, 2, 3]: VerticalLayout { spacing: 2px;
-                                Text { text: "Display " + (n + 1) + " →"; color: #9aa6ba; font-size: 12px; }
-                                ComboBox { model: [@tr("Monitor 1"), @tr("Monitor 2"), @tr("Monitor 3"), @tr("Monitor 4")]; current-index: root.screen-indexes[n];
-                                    selected(v) => { root.video-screen-selected(n, self.current-index); } } } }
-                        Text { text: @tr("Pad naar mpv (leeg = automatisch zoeken)"); color: #9aa6ba; font-size: 12px; }
-                        HorizontalLayout { spacing: 8px; height: 34px;
-                            LineEdit { horizontal-stretch: 1; text <=> root.mpv-path; placeholder-text: "C:\\mpv\\mpv.exe"; edited(t) => { root.mpv-path-edited(t); } }
-                            ToolButton { text: @tr("Bladeren…"); width: 104px; font: 13px; clicked => { root.browse-mpv(); } } }
-                        Text { text: root.video-status; color: #9aa6ba; font-size: 12px; wrap: word-wrap; }
-
-                        Text { text: @tr("Sneltoetsen"); color: #c5cee0; font-size: 15px; font-weight: 700; }
-                        for k[i] in root.keys: HorizontalLayout {
-                            spacing: 8px; height: 34px;
-                            Text { text: k.action; color: white; font-size: 14px; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
-                            Rectangle {
-                                width: 190px; border-radius: 6px; border-width: 1px;
-                                border-color: k.capturing ? #4ade80 : #3a4558; background: #0b101b;
-                                Text { text: k.capturing ? @tr("Druk een toets…") : (k.key == "" ? @tr("— geen —") : k.key);
-                                    color: k.capturing ? #4ade80 : (k.key == "" ? #6b778c : white); font-size: 14px; }
-                            }
-                            ToolButton { width: 92px; text: k.capturing ? @tr("Annuleer") : @tr("Wijzig"); font: 13px; clicked => { root.key-capture(i); capture-fs.focus(); } }
-                            ToolButton { width: 64px; text: @tr("Wis"); font: 13px; clicked => { root.key-clear(i); } }
-                            ToolButton { width: 110px; text: @tr("Standaard"); font: 13px; clicked => { root.key-reset(i); } }
-                        }
-                        HorizontalLayout { alignment: start; ToolButton { text: @tr("Alles op standaard"); width: 200px; height: 32px; font: 13px; clicked => { root.keys-reset-all(); } } }
-                    }
-                }
-                HorizontalLayout {
-                    spacing: 12px; height: 38px;
-                    Text { text: root.settings-note; color: #fbbf24; font-size: 13px; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
-                    ToolButton { text: @tr("Opslaan en sluiten"); width: 190px; fill: #1c8a2e; clicked => { root.close-settings(); fs.focus(); } }
-                }
-            }
         }
     }
 }

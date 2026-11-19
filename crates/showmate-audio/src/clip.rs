@@ -25,6 +25,20 @@ impl AudioClip {
         }
     }
 
+    /// Een korte sinustoon (stereo, zacht, met fade in/uit) om een uitgang te testen.
+    pub fn test_tone(sample_rate: u32, secs: f32, freq: f32) -> Self {
+        let frames = (sample_rate as f32 * secs) as usize;
+        let fade = (sample_rate as f32 * 0.03) as usize;
+        let mut samples = Vec::with_capacity(frames * 2);
+        for i in 0..frames {
+            let t = i as f32 / sample_rate as f32;
+            let env = (i.min(frames - 1 - i) as f32 / fade.max(1) as f32).min(1.0);
+            let v = (2.0 * std::f32::consts::PI * freq * t).sin() * 0.3 * env;
+            samples.extend([v, v]);
+        }
+        Self::from_stereo(samples, sample_rate)
+    }
+
     pub fn samples(&self) -> &[f32] {
         &self.samples
     }
