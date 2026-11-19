@@ -31,8 +31,10 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+    # Per branch: releases op main wachten op elkaar en worden niet geannuleerd door
+    # builds van andere branches (die deelden eerst één groep en verdrongen de release).
     concurrency:
-      group: release
+      group: installer-${{ github.ref }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v5
