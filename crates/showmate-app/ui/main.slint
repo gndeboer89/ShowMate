@@ -1,8 +1,8 @@
 import { LineEdit, TextEdit, ComboBox, CheckBox, ScrollView, Palette } from "std-widgets.slint";
-import { DestRow, CommandRow, KeyRow, ToolButton, Field, HeaderCell, Cell } from "common.slint";
+import { DestRow, CommandRow, KeyRow, AudioOutRow, VideoOutRow, ToolButton, Field, HeaderCell, Cell } from "common.slint";
 import { SettingsWindow } from "settings.slint";
 
-export { DestRow, CommandRow, KeyRow, SettingsWindow }
+export { DestRow, CommandRow, KeyRow, AudioOutRow, VideoOutRow, SettingsWindow }
 
 export struct CueRow {
     number: int,
@@ -109,7 +109,9 @@ export component MainWindow inherits Window {
     in property <string> insp-title;
     in-out property <string> insp-name;
     in-out property <string> insp-media;
-    in-out property <string> insp-output;
+    in-out property <int> insp-out-index;
+    in property <[string]> insp-out-options;
+    in property <bool> insp-out-unknown;
     in-out property <string> insp-notes;
     in-out property <int> insp-start-index;
     in-out property <string> insp-delay;
@@ -417,8 +419,8 @@ export component MainWindow inherits Window {
                                 HorizontalLayout { spacing: 6px;
                                     LineEdit { horizontal-stretch: 1; enabled: root.has-selection; text <=> root.insp-media; edited(t) => { root.edit-media(t); } }
                                     ToolButton { text: @tr("Bladeren…"); width: 104px; height: 32px; font: 13px; enabled: root.has-selection; clicked => { root.browse-media(); } } } }
-                            if root.insp-kind != "osc" && root.insp-kind != "midi" && root.insp-kind != "group": Field { label: @tr("Output");
-                                LineEdit { enabled: root.has-selection; text <=> root.insp-output; edited(t) => { root.edit-output(t); } } }
+                            if root.insp-kind != "osc" && root.insp-kind != "midi" && root.insp-kind != "group": Field { label: root.insp-out-unknown ? @tr("Uitgang — onbekend") : @tr("Uitgang"); valid: !root.insp-out-unknown;
+                                ComboBox { enabled: root.has-selection; model: root.insp-out-options; current-index <=> root.insp-out-index; selected(v) => { root.edit-output(v); } } }
                             if root.insp-kind == "group": Field { label: @tr("Soort");
                                 ComboBox { model: [@tr("Groep (na elkaar)"), @tr("Parallel (tegelijk)"), @tr("Loop (herhalen)")]; current-index <=> root.insp-group-mode-index;
                                     selected(v) => { root.edit-group-mode(self.current-index); } } }

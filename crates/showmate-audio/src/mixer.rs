@@ -31,7 +31,9 @@ pub struct VoiceParams {
     pub looping: bool,
     /// Kap het geluid hier af (bv. de duur van de cue).
     pub max_duration: Option<Duration>,
-    pub out_pair: usize,
+    /// Kanalen van het apparaat (0-gebaseerd) waar links en rechts heen gaan.
+    pub out_left: usize,
+    pub out_right: usize,
 }
 
 /// Een spelend geluid.
@@ -47,7 +49,8 @@ pub struct Voice {
     elapsed: usize,
     stop_total: usize,
     stop_done: usize,
-    out_pair: usize,
+    out_left: usize,
+    out_right: usize,
     done: bool,
 }
 
@@ -71,7 +74,8 @@ impl Voice {
             elapsed: 0,
             stop_total: 0,
             stop_done: 0,
-            out_pair: p.out_pair,
+            out_left: p.out_left,
+            out_right: p.out_right,
             done: clip_frames == 0 || end == 0,
         }
     }
@@ -206,14 +210,16 @@ impl Mixer {
                 let samples = v.clip.samples();
                 let (l, r) = (samples[v.pos * 2] * g, samples[v.pos * 2 + 1] * g);
                 if channels == 1 {
-                    if v.out_pair == 0 {
+                    // Mono-apparaat: alleen geluid dat naar kanaal 1 gaat, L+R opgeteld.
+                    if v.out_left == 0 || v.out_right == 0 {
                         frame[0] += (l + r) * 0.5;
                     }
                 } else {
-                    let base = v.out_pair * 2;
-                    if base + 1 < channels {
-                        frame[base] += l;
-                        frame[base + 1] += r;
+                    if v.out_left < channels {
+                        frame[v.out_left] += l;
+                    }
+                    if v.out_right < channels {
+                        frame[v.out_right] += r;
                     }
                 }
                 v.done = v.advance();
@@ -236,8 +242,15 @@ impl Mixer {
             for s in frame.iter_mut() {
                 *s = s.clamp(-1.0, 1.0);
             }
-            self.peak.0 = self.peak.0.max(frame[0].abs());
-            self.peak.1 = self.peak.1.max(frame[channels.min(2) - 1].abs());
+            // Piek per kant over alle kanalen (even = links, oneven = rechts), ook bij uitgang 3+4 enz.
+            for (c, sample) in frame.iter().enumerate() {
+                if c % 2 == 0 || channels == 1 {
+                    self.peak.0 = self.peak.0.max(sample.abs());
+                }
+                if c % 2 == 1 || channels == 1 {
+                    self.peak.1 = self.peak.1.max(sample.abs());
+                }
+            }
         }
     }
 }

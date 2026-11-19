@@ -12,6 +12,21 @@ export struct CommandRow {
     args: string,
 }
 
+export struct AudioOutRow {
+    name: string,
+    device-index: int,
+    left: int,
+    right: int,
+}
+
+export struct VideoOutRow {
+    name: string,
+    m1: bool,
+    m2: bool,
+    m3: bool,
+    m4: bool,
+}
+
 export struct KeyRow {
     action: string,
     key: string,

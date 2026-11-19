@@ -137,9 +137,7 @@ impl AppState {
     /// Wisselt naar een andere show en zet alles wat bij de vorige hoorde terug.
     pub(super) fn replace_show(&mut self, show: Show, path: PathBuf, recovered: bool) {
         // Niets mag doorspelen uit de vorige show.
-        if let Some(a) = self.audio.as_mut() {
-            let _ = a.panic();
-        }
+        self.audio.panic();
         self.video.hide_all();
 
         self.engine = Engine::new(SystemClock::new(), show);
@@ -176,7 +174,7 @@ impl AppState {
             );
         }
 
-        self.preload_all();
+        self.warm_audio();
         if let Some(e) = self.warm_video() {
             self.message = e;
         }
@@ -237,7 +235,8 @@ impl AppState {
             Some(job) => self.start_copies(vec![job]),
             None => {
                 if media::kind_of(src) == Some(CueKind::Audio) {
-                    self.cache.request(&self.resolve_media(&placement.value));
+                    self.cache
+                        .request(&self.resolve_media(&placement.value), &self.rates());
                 }
             }
         }
@@ -367,7 +366,7 @@ impl AppState {
             match result {
                 Ok(dest) => {
                     if media::kind_of(&dest) == Some(CueKind::Audio) {
-                        self.cache.request(&dest);
+                        self.cache.request(&dest, &self.rates());
                     }
                     if self.copies.is_empty() {
                         self.message = t!("Gekopieerd: {name}", "Copied: {name}");

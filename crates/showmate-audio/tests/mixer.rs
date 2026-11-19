@@ -17,7 +17,8 @@ fn params(id: u64, clip: Arc<AudioClip>) -> VoiceParams {
         fade_out: Duration::ZERO,
         looping: false,
         max_duration: None,
-        out_pair: 0,
+        out_left: 0,
+        out_right: 1,
     }
 }
 
@@ -158,7 +159,8 @@ fn pause_freezes_position_and_resumes() {
 fn output_pair_maps_to_channels() {
     let mut m = Mixer::new(RATE);
     let mut p = params(1, clip(10, 0.5));
-    p.out_pair = 1;
+    p.out_left = 2;
+    p.out_right = 3;
     play(&mut m, p);
     let out = render(&mut m, 1, 4);
     assert_eq!(out, vec![0.0, 0.0, 0.5, 0.5]);
@@ -168,7 +170,8 @@ fn output_pair_maps_to_channels() {
 fn pair_beyond_device_is_silent_and_mono_sums() {
     let mut m = Mixer::new(RATE);
     let mut p = params(1, clip(10, 0.5));
-    p.out_pair = 1;
+    p.out_left = 2;
+    p.out_right = 3;
     play(&mut m, p);
     assert!(render(&mut m, 4, 2).iter().all(|s| *s == 0.0));
     let mut m = Mixer::new(RATE);
@@ -224,4 +227,47 @@ fn test_tone_clip_is_stereo_with_fades() {
     );
     let n = clip.samples().len();
     assert!(clip.samples()[n - 1].abs() < 0.01, "eindigt stil");
+}
+
+#[test]
+fn routes_to_arbitrary_channel_pairs() {
+    let mut m = Mixer::new(RATE);
+    let mut p = params(1, clip(4, 0.5));
+    p.out_left = 4;
+    p.out_right = 7; // 5 en 8 van een 8-kanaals kaart
+    play(&mut m, p);
+    let out = render(&mut m, 1, 8);
+    assert_eq!(out, vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.5]);
+}
+
+#[test]
+fn left_and_right_may_swap_or_share_a_channel() {
+    let mut m = Mixer::new(RATE);
+    let samples: Vec<f32> = (0..8).flat_map(|_| [0.2f32, 0.6]).collect(); // L=0.2, R=0.6
+    let mut p = params(1, Arc::new(AudioClip::from_stereo(samples, RATE)));
+    p.out_left = 1;
+    p.out_right = 0; // verwisseld
+    play(&mut m, p);
+    assert_eq!(render(&mut m, 1, 2), vec![0.6, 0.2]);
+    let mut m = Mixer::new(RATE);
+    let mut p = params(1, clip(8, 0.25));
+    p.out_left = 0;
+    p.out_right = 0; // beide op kanaal 1: opgeteld
+    play(&mut m, p);
+    assert_eq!(render(&mut m, 1, 2), vec![0.5, 0.0]);
+}
+
+#[test]
+fn peaks_follow_routed_channels() {
+    let mut m = Mixer::new(RATE);
+    let mut p = params(1, clip(10, 0.5));
+    p.out_left = 2;
+    p.out_right = 3;
+    play(&mut m, p);
+    render(&mut m, 4, 4);
+    assert_eq!(
+        m.take_peak(),
+        (0.5, 0.5),
+        "ook uitgang 3+4 geeft een uitslag"
+    );
 }

@@ -92,17 +92,29 @@ fn garbage_and_missing_files_fail_cleanly() {
 fn cache_loads_in_background_and_reports_failure() {
     let frames: Vec<Vec<i16>> = (0..4410).map(|_| vec![1000, 1000]).collect();
     let (dir, path) = write_tmp("cache", &wav_bytes(2, 44100, &frames));
-    let cache = ClipCache::new(48000);
+    let cache = ClipCache::new();
     assert!(matches!(cache.status(&path), ClipStatus::Unknown));
-    cache.request(&path);
-    cache.request(&path); // idempotent
+    cache.request(&path, &[48000]);
+    cache.request(&path, &[48000]); // idempotent
     let bad = dir.join("niet-aanwezig.wav");
-    cache.request(&bad);
+    cache.request(&bad, &[48000]);
     let start = std::time::Instant::now();
     loop {
         match (cache.status(&path), cache.status(&bad)) {
             (ClipStatus::Ready(c), ClipStatus::Failed(_)) => {
-                assert_eq!(c.sample_rate(), 48000);
+                assert_eq!(c.sample_rate(), 44100, "status() geeft het origineel");
+                let ClipStatus::Ready(c48) = cache.status_at(&path, 48000) else {
+                    panic!()
+                };
+                assert_eq!(c48.sample_rate(), 48000);
+                let ClipStatus::Ready(c96) = cache.status_at(&path, 96000) else {
+                    panic!()
+                };
+                assert_eq!(
+                    c96.sample_rate(),
+                    96000,
+                    "ook een rate die niet vooraf is gevraagd"
+                );
                 break;
             }
             _ if start.elapsed().as_secs() > 10 => panic!("cache te traag"),

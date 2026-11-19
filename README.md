@@ -121,14 +121,27 @@ Bovenin het venster staat een menubalk: **Bestand** (nieuw, openen, recente show
 | Categorie | Wat |
 |---|---|
 | Algemeen | taal (NL/EN), mediabestanden kopiëren naar de show |
-| Audio | **uitvoerapparaat** kiezen, testtoon op uitgang 1+2 / 3+4 / 5+6 |
-| Video | volledig scherm, monitor per display, pad naar mpv |
+| Audio | **uitgangen** aanmaken en koppelen aan een geluidskaart + twee kanalen, testtoon per uitgang |
+| Video | **uitgangen** aanmaken en koppelen aan een of meer monitoren, volledig scherm, pad naar mpv |
 | OSC | bestemmingen (IP/poort) en commando's |
 | MIDI | MIDI-uitgang |
 | Sneltoetsen | alle sneltoetsen aanpassen |
 
-Het venster kun je open laten staan naast het hoofdvenster. *Sluiten* (of het kruisje) past de instellingen toe en bewaart
-ze. De audio-uitgang wordt meteen omgeschakeld zodra je een apparaat kiest, zodat je met de testtoon kunt controleren.
+Het venster kun je open laten staan naast het hoofdvenster. *Sluiten* (of het kruisje) past de instellingen toe en bewaart ze.
+
+### Uitgangen (audio en video)
+
+Een cue kiest geen kaart of monitor, maar een **uitgang met een naam** (veld *Uitgang* in de inspector). In de
+instellingen bepaal je wat die naam betekent, zodat je een show kunt hergebruiken op een andere computer door alleen de
+koppeling aan te passen:
+
+- **Audio-uitgang** = naam + **geluidskaart** (of het standaardapparaat) + **linker- en rechterkanaal** (1–16). Zo maak
+  je bijvoorbeeld *Zaal* (USB-interface, kanaal 1+2), *Podium* (kanaal 3+4) en *Monitor* (interne kaart). Er kunnen meerdere
+  kaarten tegelijk in gebruik zijn; elke kaart wordt pas geopend als een cue hem nodig heeft. De ▶-knop speelt een testtoon.
+- **Video-uitgang** = naam + **monitor(en)** (1–4). Meerdere monitoren tonen hetzelfde beeld op allemaal.
+- Hernoem je een uitgang, dan volgen de cues vanzelf. Verwijder je er een, dan staat de cue op *onbekend* (rood label).
+- Standaard bestaan `Audio 1+2`, `Audio 3+4`, `Display 1`, `Display 2` en `Display 1+2`, zodat bestaande shows blijven werken.
+  Ook een oude naam als `Audio 5+6` blijft werken zolang er geen uitgang met die naam is (standaardapparaat, kanaal 5+6).
 
 ## GO en de playhead
 

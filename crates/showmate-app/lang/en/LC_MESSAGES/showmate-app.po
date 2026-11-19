@@ -340,6 +340,14 @@ msgid "Type"
 msgstr "Type"
 
 msgctxt "MainWindow"
+msgid "Uitgang"
+msgstr "Output"
+
+msgctxt "MainWindow"
+msgid "Uitgang — onbekend"
+msgstr "Output — unknown"
+
+msgctxt "MainWindow"
 msgid "Verstuurt: "
 msgstr "Sends: "
 
@@ -384,6 +392,10 @@ msgid "+ Commando"
 msgstr "+ Command"
 
 msgctxt "SettingsWindow"
+msgid "+ Uitgang"
+msgstr "+ Output"
+
+msgctxt "SettingsWindow"
 msgid "Algemeen"
 msgstr "General"
 
@@ -416,12 +428,16 @@ msgid "Bladeren…"
 msgstr "Browse…"
 
 msgctxt "SettingsWindow"
-msgid "Cues kiezen zelf een uitgangspaar met het veld Output (Audio 1+2, Audio 3+4, …). De uitgang hierboven geldt voor alle audio."
-msgstr "Cues pick their own output pair with the Output field (Audio 1+2, Audio 3+4, …). The device above applies to all audio."
+msgid "De afspeelknop naast een uitgang speelt een testtoon. Een kaart wordt pas geopend als een uitgang of cue hem nodig heeft."
+msgstr "The play button next to an output plays a test tone. A card is only opened when an output or cue needs it."
 
 msgctxt "SettingsWindow"
 msgid "Druk een toets…"
 msgstr "Press a key…"
+
+msgctxt "SettingsWindow"
+msgid "Geluidskaart"
+msgstr "Sound card"
 
 msgctxt "SettingsWindow"
 msgid "IP-adres of hostnaam"
@@ -432,6 +448,10 @@ msgid "Instellingen"
 msgstr "Settings"
 
 msgctxt "SettingsWindow"
+msgid "Links"
+msgstr "Left"
+
+msgctxt "SettingsWindow"
 msgid "MIDI"
 msgstr "MIDI"
 
@@ -440,20 +460,16 @@ msgid "MIDI-uitgang"
 msgstr "MIDI output"
 
 msgctxt "SettingsWindow"
-msgid "Monitor 1"
-msgstr "Monitor 1"
+msgid "Maak uitgangen aan en kies per uitgang op welke monitor(en) het beeld komt. Meerdere monitoren = hetzelfde beeld op allemaal."
+msgstr "Create outputs and choose per output which monitor(s) show the picture. Several monitors = the same picture on all of them."
 
 msgctxt "SettingsWindow"
-msgid "Monitor 2"
-msgstr "Monitor 2"
+msgid "Maak uitgangen aan en koppel elke uitgang aan een geluidskaart en twee kanalen. Cues kiezen een uitgang op naam."
+msgstr "Create outputs and link each one to a sound card and two channels. Cues pick an output by name."
 
 msgctxt "SettingsWindow"
-msgid "Monitor 3"
-msgstr "Monitor 3"
-
-msgctxt "SettingsWindow"
-msgid "Monitor 4"
-msgstr "Monitor 4"
+msgid "Monitoren"
+msgstr "Monitors"
 
 msgctxt "SettingsWindow"
 msgid "Naam"
@@ -484,6 +500,10 @@ msgid "Poort"
 msgstr "Port"
 
 msgctxt "SettingsWindow"
+msgid "Rechts"
+msgstr "Right"
+
+msgctxt "SettingsWindow"
 msgid "Sluiten"
 msgstr "Close"
 
@@ -494,26 +514,6 @@ msgstr "Keyboard shortcuts"
 msgctxt "SettingsWindow"
 msgid "Standaard"
 msgstr "Default"
-
-msgctxt "SettingsWindow"
-msgid "Testtoon uitgang 1+2"
-msgstr "Test tone output 1+2"
-
-msgctxt "SettingsWindow"
-msgid "Testtoon uitgang 3+4"
-msgstr "Test tone output 3+4"
-
-msgctxt "SettingsWindow"
-msgid "Testtoon uitgang 5+6"
-msgstr "Test tone output 5+6"
-
-msgctxt "SettingsWindow"
-msgid "Uitgang (afspeelapparaat)"
-msgstr "Output (playback device)"
-
-msgctxt "SettingsWindow"
-msgid "Uitgang testen"
-msgstr "Test output"
 
 msgctxt "SettingsWindow"
 msgid "Uitvoer op volledig scherm (anders in een gewoon venster)"

@@ -13,51 +13,128 @@ pub enum ClipStatus {
     Failed(String),
 }
 
-/// Laadt en decodeert clips op achtergrondthreads, geresampled naar de uitvoerrate.
-#[derive(Clone)]
+/// Het gedecodeerde bestand plus de versies per samplerate (elke geluidskaart kan een andere rate hebben).
+struct Loaded {
+    original: Arc<AudioClip>,
+    by_rate: Mutex<HashMap<u32, Arc<AudioClip>>>,
+}
+
+impl Loaded {
+    fn at(&self, rate: u32) -> Arc<AudioClip> {
+        if self.original.sample_rate() == rate {
+            return self.original.clone();
+        }
+        if let Some(c) = self.by_rate.lock().expect("rate-lock").get(&rate) {
+            return c.clone();
+        }
+        // Buiten het slot resamplen: dat kan even duren.
+        let resampled = Arc::new(self.original.resampled(rate));
+        self.by_rate
+            .lock()
+            .expect("rate-lock")
+            .entry(rate)
+            .or_insert(resampled)
+            .clone()
+    }
+}
+
+enum Entry {
+    Loading,
+    Ready(Arc<Loaded>),
+    Failed(String),
+}
+
+/// Laadt en decodeert clips op achtergrondthreads en levert ze op elke gewenste samplerate.
+#[derive(Clone, Default)]
 pub struct ClipCache {
-    rate: u32,
-    inner: Arc<Mutex<HashMap<PathBuf, ClipStatus>>>,
+    inner: Arc<Mutex<HashMap<PathBuf, Entry>>>,
 }
 
 impl ClipCache {
-    pub fn new(sample_rate: u32) -> Self {
-        Self {
-            rate: sample_rate,
-            inner: Arc::default(),
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn sample_rate(&self) -> u32 {
-        self.rate
-    }
-
-    /// Start (indien nodig) het laden van `path`. Meerdere aanroepen zijn goedkoop.
-    pub fn request(&self, path: &Path) {
-        {
+    /// Start (indien nodig) het laden van `path` en bereidt de versies voor op `rates` voor
+    /// (zodat GO niet hoeft te wachten op resamplen). Meerdere aanroepen zijn goedkoop.
+    pub fn request(&self, path: &Path, rates: &[u32]) {
+        let rates = rates.to_vec();
+        let existing = {
             let mut map = self.inner.lock().expect("cache-lock");
-            if map.contains_key(path) {
-                return;
+            match map.get(path) {
+                Some(Entry::Ready(l)) => Some(Some(l.clone())),
+                Some(Entry::Loading | Entry::Failed(_)) => return,
+                None => {
+                    map.insert(path.to_path_buf(), Entry::Loading);
+                    None
+                }
             }
-            map.insert(path.to_path_buf(), ClipStatus::Loading);
-        }
-        let (inner, rate, path) = (self.inner.clone(), self.rate, path.to_path_buf());
+        };
+        let (inner, path) = (self.inner.clone(), path.to_path_buf());
         std::thread::spawn(move || {
-            let status = match decode_file(&path) {
-                Ok(clip) => ClipStatus::Ready(Arc::new(clip.resampled(rate))),
-                Err(e) => ClipStatus::Failed(e.to_string()),
+            let loaded = match existing.flatten() {
+                Some(l) => l,
+                None => match decode_file(&path) {
+                    Ok(clip) => {
+                        let l = Arc::new(Loaded {
+                            original: Arc::new(clip),
+                            by_rate: Mutex::default(),
+                        });
+                        inner
+                            .lock()
+                            .expect("cache-lock")
+                            .insert(path, Entry::Ready(l.clone()));
+                        l
+                    }
+                    Err(e) => {
+                        inner
+                            .lock()
+                            .expect("cache-lock")
+                            .insert(path, Entry::Failed(e.to_string()));
+                        return;
+                    }
+                },
             };
-            inner.lock().expect("cache-lock").insert(path, status);
+            for rate in rates {
+                loaded.at(rate);
+            }
         });
     }
 
+    fn entry_status(entry: Option<&Entry>, rate: Option<u32>) -> ClipStatus {
+        match entry {
+            None => ClipStatus::Unknown,
+            Some(Entry::Loading) => ClipStatus::Loading,
+            Some(Entry::Failed(e)) => ClipStatus::Failed(e.clone()),
+            Some(Entry::Ready(l)) => ClipStatus::Ready(match rate {
+                Some(r) => l.at(r),
+                None => l.original.clone(),
+            }),
+        }
+    }
+
+    /// Het bestand op zijn eigen samplerate (voor golfvorm en duur).
     pub fn status(&self, path: &Path) -> ClipStatus {
-        self.inner
-            .lock()
-            .expect("cache-lock")
-            .get(path)
-            .cloned()
-            .unwrap_or(ClipStatus::Unknown)
+        let loaded = {
+            let map = self.inner.lock().expect("cache-lock");
+            match map.get(path) {
+                Some(Entry::Ready(l)) => Some(l.clone()),
+                other => return Self::entry_status(other, None),
+            }
+        };
+        ClipStatus::Ready(loaded.expect("Ready").original.clone())
+    }
+
+    /// Het bestand op samplerate `rate` (voor afspelen op een apparaat met die rate).
+    pub fn status_at(&self, path: &Path, rate: u32) -> ClipStatus {
+        let loaded = {
+            let map = self.inner.lock().expect("cache-lock");
+            match map.get(path) {
+                Some(Entry::Ready(l)) => l.clone(),
+                other => return Self::entry_status(other, None),
+            }
+        };
+        ClipStatus::Ready(loaded.at(rate))
     }
 
     /// Vergeet een pad (bv. nadat het bestand is vervangen) zodat het opnieuw geladen wordt.

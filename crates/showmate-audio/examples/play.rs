@@ -28,7 +28,8 @@ fn main() {
         fade_out: Duration::from_millis(500),
         looping: false,
         max_duration: None,
-        out_pair: 0,
+        out_left: 0,
+        out_right: 1,
     })
     .expect("play");
     let start = Instant::now();

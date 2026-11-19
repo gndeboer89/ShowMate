@@ -8,6 +8,8 @@ use showmate_io::{MidiOut, format_args as format_osc_args, list_midi_ports, pars
 use slint::{ModelRc, SharedString, VecModel};
 
 const MIDI_NONE: &str = "(geen)";
+/// Achtervoegsel voor een cue-uitgang die niet (meer) bestaat in de instellingen.
+pub(super) const UNDEFINED: &str = "  (niet gedefinieerd)";
 const OWN_COMMAND: &str = "(eigen)";
 const MIDI_KINDS: [(MidiKind, &str); 4] = [
     (MidiKind::NoteOn, "Note On"),
@@ -16,7 +18,7 @@ const MIDI_KINDS: [(MidiKind, &str); 4] = [
     (MidiKind::ProgramChange, "Program Change"),
 ];
 
-fn strings(items: impl IntoIterator<Item = String>) -> ModelRc<SharedString> {
+pub(super) fn strings(items: impl IntoIterator<Item = String>) -> ModelRc<SharedString> {
     ModelRc::new(VecModel::from(
         items
             .into_iter()
@@ -226,19 +228,6 @@ impl AppState {
         self.settings.video.fullscreen = on;
     }
 
-    /// Koppelt `Display n+1` aan monitor `monitor` (0 = eerste monitor).
-    pub fn video_screen_selected(&mut self, display: i32, monitor: i32) {
-        let (Ok(d), Ok(m)) = (usize::try_from(display), usize::try_from(monitor)) else {
-            return;
-        };
-        let screens = &mut self.settings.video.screens;
-        if screens.len() <= d.max(3) {
-            let have = screens.len();
-            screens.extend(have..=d.max(3));
-        }
-        screens[d] = m;
-    }
-
     pub fn mpv_path_edited(&mut self, text: &str) {
         let t = text.trim();
         self.settings.video.mpv_path = (!t.is_empty()).then(|| t.into());
@@ -277,7 +266,7 @@ impl AppState {
     pub fn open_settings(&mut self) {
         self.settings_note.clear();
         self.midi_refresh();
-        self.audio_refresh();
+        self.audio_devices_refresh();
         self.fill_settings = true;
     }
 
@@ -287,6 +276,7 @@ impl AppState {
         self.osc.forget();
         self.connect_midi();
         self.apply_video_settings();
+        self.warm_audio();
         self.settings_note.clear();
         self.message = match settings::save(&self.app_dir, &self.settings) {
             Ok(()) if self.midi_status.is_empty() => {
@@ -304,76 +294,6 @@ impl AppState {
         };
         self.fill_settings = true;
         self.fill_inspector = true;
-    }
-
-    // ---- audio-uitgang ---------------------------------------------------------------
-
-    pub fn audio_refresh(&mut self) {
-        self.audio_devices = showmate_audio::list_output_devices();
-        self.fill_names = true;
-    }
-
-    /// Kiest een uitvoerapparaat: index 0 = standaardapparaat van het systeem.
-    pub fn audio_selected(&mut self, index: i32) {
-        let device = usize::try_from(index)
-            .ok()
-            .and_then(|i| i.checked_sub(1))
-            .and_then(|i| self.audio_devices.get(i).cloned());
-        self.settings.audio.device = device;
-        self.apply_audio_settings();
-        self.fill_names = true;
-    }
-
-    /// Opent de audio-uitgang opnieuw als het gekozen apparaat is gewijzigd.
-    fn apply_audio_settings(&mut self) {
-        if self.settings.audio.device == self.audio_device_open {
-            return;
-        }
-        if let Some(a) = self.audio.as_mut() {
-            let _ = a.panic(); // niets mag doorspelen op het oude apparaat
-        }
-        let wanted = self.settings.audio.device.clone();
-        let (audio, info) = super::open_audio(wanted.as_deref());
-        self.audio = audio;
-        self.audio_info = info;
-        self.audio_device_open = wanted;
-        // Geluiden zijn omgezet naar de samplerate van het oude apparaat.
-        self.cache = showmate_audio::ClipCache::new(self.audio.as_ref().map_or(
-            super::FALLBACK_RATE,
-            showmate_audio::AudioOutput::sample_rate,
-        ));
-        self.preload_all();
-        self.wave_reset = true;
-    }
-
-    /// Speelt een korte testtoon op uitgangspaar `pair` (0 = 1+2, 1 = 3+4, …).
-    pub fn audio_test(&mut self, pair: i32) {
-        let Ok(pair) = usize::try_from(pair) else {
-            return;
-        };
-        let Some(a) = self.audio.as_mut() else {
-            self.message = t!("geen audio-apparaat", "no audio device");
-            return;
-        };
-        let freq = [440.0, 660.0, 880.0].get(pair).copied().unwrap_or(440.0);
-        let clip = std::sync::Arc::new(showmate_audio::AudioClip::test_tone(
-            a.sample_rate(),
-            0.8,
-            freq,
-        ));
-        let result = a.play(showmate_audio::VoiceParams {
-            id: u64::MAX - pair as u64,
-            clip,
-            gain_db: 0.0,
-            fade_in: std::time::Duration::ZERO,
-            fade_out: std::time::Duration::ZERO,
-            looping: false,
-            max_duration: None,
-            out_pair: pair,
-        });
-        if let Err(e) = result {
-            self.message = e.to_string();
-        }
     }
 
     /// Past in alle cues een naam aan die naar een hernoemde bestemming/commando verwees.
@@ -559,10 +479,6 @@ impl AppState {
         let s = &self.settings;
         ui.set_copy_media(s.copy_media);
         ui.set_video_fullscreen(s.video.fullscreen);
-        let screens: Vec<i32> = (0..4)
-            .map(|n| s.video.screens.get(n).copied().unwrap_or(n) as i32)
-            .collect();
-        ui.set_screen_indexes(ModelRc::new(VecModel::from(screens)));
         ui.set_mpv_path(
             s.video
                 .mpv_path
@@ -582,25 +498,7 @@ impl AppState {
         ui.set_language_index(i32::from(s.language == "en"));
         ui.set_note(self.settings_note.as_str().into());
 
-        // Audio: index 0 = standaardapparaat; een eerder gekozen maar ontbrekend apparaat blijft zichtbaar.
-        let mut devices = vec![t!(
-            "(standaardapparaat van het systeem)",
-            "(system default device)"
-        )];
-        devices.extend(self.audio_devices.iter().cloned());
-        if let Some(sel) = s.audio.device.as_ref().filter(|d| !devices.contains(d)) {
-            devices.push(sel.clone());
-        }
-        let audio_index = s
-            .audio
-            .device
-            .as_ref()
-            .and_then(|d| devices.iter().position(|x| x == d))
-            .unwrap_or(0);
-        ui.set_audio_index(audio_index as i32);
-        ui.set_audio_devices(strings(devices));
-        ui.set_audio_info(self.audio_info.as_str().into());
-        ui.set_audio_channels(self.audio.as_ref().map_or(2, |a| i32::from(a.channels())));
+        self.fill_outputs_ui(ui, rebuild_rows);
 
         let mut ports = vec![MIDI_NONE.to_string()];
         ports.extend(self.midi_ports.iter().cloned());
@@ -668,6 +566,32 @@ impl AppState {
             showmate_core::GroupMode::Loop => 2,
         });
         ui.set_insp_mute(cue.mute_audio);
+        // Keuzelijst met de gedefinieerde uitgangen; een naam die niet (meer) bestaat blijft zichtbaar.
+        let mut out_options: Vec<String> = match cue.kind {
+            CueKind::Audio => self
+                .settings
+                .audio
+                .outputs
+                .iter()
+                .map(|o| o.name.clone())
+                .collect(),
+            CueKind::Video => self
+                .settings
+                .video
+                .outputs
+                .iter()
+                .map(|o| o.name.clone())
+                .collect(),
+            _ => Vec::new(),
+        };
+        let found = out_options.iter().position(|n| *n == cue.output);
+        let unknown = found.is_none() && matches!(cue.kind, CueKind::Audio | CueKind::Video);
+        if unknown {
+            out_options.push(format!("{}{UNDEFINED}", cue.output));
+        }
+        ui.set_insp_out_unknown(unknown);
+        ui.set_insp_out_index(found.unwrap_or(out_options.len().saturating_sub(1)) as i32);
+        ui.set_insp_out_options(strings(out_options));
         let dests = &self.settings.osc.destinations;
         let dest_index = if cue.output.trim().is_empty() {
             0

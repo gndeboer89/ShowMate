@@ -14,6 +14,8 @@ mod output;
 
 #[cfg(feature = "device")]
 mod device;
+#[cfg(feature = "device")]
+mod hub;
 
 pub use cache::{ClipCache, ClipStatus};
 pub use clip::AudioClip;
@@ -24,3 +26,5 @@ pub use output::parse_output_pair;
 
 #[cfg(feature = "device")]
 pub use device::{AudioOutput, default_output_name, list_output_devices};
+#[cfg(feature = "device")]
+pub use hub::{AudioHub, DeviceKey};

@@ -115,9 +115,7 @@ impl AppState {
 
     /// Alles meteen stoppen: geluid hard afkappen, beelden weg, engine stop.
     pub fn panic_stop(&mut self) {
-        if let Some(a) = self.audio.as_mut() {
-            let _ = a.panic();
-        }
+        self.audio.panic();
         let events = self.engine.stop();
         self.handle_events(events);
         self.video.hide_all();

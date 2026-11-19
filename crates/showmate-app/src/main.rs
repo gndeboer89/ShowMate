@@ -67,8 +67,7 @@ fn main() -> Result<(), slint::PlatformError> {
         .edit_fade(&v, true));
     wire!(ui, on_edit_fade_out, |st, v: SharedString| st
         .edit_fade(&v, false));
-    wire!(ui, on_edit_output, |st, v: SharedString| st
-        .edit(|c| c.output = v.to_string()));
+    wire!(ui, on_edit_output, |st, v: SharedString| st.edit_output(&v));
     wire!(ui, on_edit_notes, |st, v: SharedString| st
         .edit(|c| c.notes = v.to_string()));
     wire!(ui, on_edit_start, |st, auto: bool| st.edit(|c| {
@@ -156,13 +155,30 @@ fn main() -> Result<(), slint::PlatformError> {
     wire!(sui, on_language_selected, |st, i: i32| st.set_language(i));
     wire!(sui, on_copy_media_toggled, |st, v: bool| st
         .set_copy_media(v));
-    wire!(sui, on_audio_selected, |st, i: i32| st.audio_selected(i));
-    wire!(sui, on_audio_refresh, |st| st.audio_refresh());
-    wire!(sui, on_audio_test, |st, p: i32| st.audio_test(p));
+    wire!(sui, on_audio_out_name, |st, i: i32, v: SharedString| st
+        .audio_out_name(i, &v));
+    wire!(sui, on_audio_out_device, |st, i: i32, d: i32| st
+        .audio_out_device(i, d));
+    wire!(
+        sui,
+        on_audio_out_channel,
+        |st, i: i32, side: i32, c: i32| st.audio_out_channel(i, side, c)
+    );
+    wire!(sui, on_audio_out_add, |st| st.audio_out_add());
+    wire!(sui, on_audio_out_remove, |st, i: i32| st
+        .audio_out_remove(i));
+    wire!(sui, on_audio_out_test, |st, i: i32| st.audio_out_test(i));
+    wire!(sui, on_audio_devices_refresh, |st| st
+        .audio_devices_refresh());
     wire!(sui, on_video_fullscreen_toggled, |st, v: bool| st
         .video_fullscreen_toggled(v));
-    wire!(sui, on_video_screen_selected, |st, d: i32, m: i32| st
-        .video_screen_selected(d, m));
+    wire!(sui, on_video_out_name, |st, i: i32, v: SharedString| st
+        .video_out_name(i, &v));
+    wire!(sui, on_video_out_monitor, |st, i: i32, m: i32, on: bool| st
+        .video_out_monitor(i, m, on));
+    wire!(sui, on_video_out_add, |st| st.video_out_add());
+    wire!(sui, on_video_out_remove, |st, i: i32| st
+        .video_out_remove(i));
     wire!(sui, on_mpv_path_edited, |st, v: SharedString| st
         .mpv_path_edited(&v));
     wire!(sui, on_browse_mpv, |st| st.browse_mpv());

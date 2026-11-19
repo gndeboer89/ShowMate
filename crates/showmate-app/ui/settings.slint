@@ -1,5 +1,5 @@
 import { LineEdit, ComboBox, CheckBox, ScrollView, Palette } from "std-widgets.slint";
-import { DestRow, CommandRow, KeyRow, ToolButton, HeaderCell } from "common.slint";
+import { DestRow, CommandRow, KeyRow, AudioOutRow, VideoOutRow, ToolButton, HeaderCell } from "common.slint";
 
 component SideItem inherits Rectangle {
     in property <string> text;
@@ -42,13 +42,12 @@ export component SettingsWindow inherits Window {
 
     // Audio
     in property <[string]> audio-devices;
-    in-out property <int> audio-index;
+    in property <[AudioOutRow]> audio-outs;
     in property <string> audio-info;
-    in property <int> audio-channels: 2;
 
     // Video
     in-out property <bool> video-fullscreen;
-    in property <[int]> screen-indexes: [0, 1, 2, 3];
+    in property <[VideoOutRow]> video-outs;
     in-out property <string> mpv-path;
     in property <string> video-status;
 
@@ -66,11 +65,18 @@ export component SettingsWindow inherits Window {
 
     callback language-selected(int);
     callback copy-media-toggled(bool);
-    callback audio-selected(int);
-    callback audio-refresh();
-    callback audio-test(int);
+    callback audio-out-name(int, string);
+    callback audio-out-device(int, int);
+    callback audio-out-channel(int, int, int);
+    callback audio-out-add();
+    callback audio-out-remove(int);
+    callback audio-out-test(int);
+    callback audio-devices-refresh();
     callback video-fullscreen-toggled(bool);
-    callback video-screen-selected(int, int);
+    callback video-out-name(int, string);
+    callback video-out-monitor(int, int, bool);
+    callback video-out-add();
+    callback video-out-remove(int);
     callback mpv-path-edited(string);
     callback browse-mpv();
     callback dest-edited(int, int, string);
@@ -129,26 +135,47 @@ export component SettingsWindow inherits Window {
 
                     // ---- Audio ----
                     if root.page == 1: SectionTitle { text: @tr("Audio"); }
-                    if root.page == 1: Text { text: @tr("Uitgang (afspeelapparaat)"); color: #c5cee0; font-size: 15px; font-weight: 700; }
-                    if root.page == 1: HorizontalLayout { spacing: 8px; height: 34px;
-                        ComboBox { horizontal-stretch: 1; model: root.audio-devices; current-index <=> root.audio-index; selected(v) => { root.audio-selected(self.current-index); } }
-                        ToolButton { text: @tr("Vernieuwen"); width: 120px; font: 13px; clicked => { root.audio-refresh(); } } }
+                    if root.page == 1: Hint { text: @tr("Maak uitgangen aan en koppel elke uitgang aan een geluidskaart en twee kanalen. Cues kiezen een uitgang op naam."); }
+                    if root.page == 1: HorizontalLayout { spacing: 8px; padding-right: 96px; height: 22px;
+                        HeaderCell { text: @tr("Naam"); width: 170px; }
+                        HeaderCell { text: @tr("Geluidskaart"); horizontal-stretch: 1; }
+                        HeaderCell { text: @tr("Links"); width: 76px; }
+                        HeaderCell { text: @tr("Rechts"); width: 76px; } }
+                    if root.page == 1: VerticalLayout { spacing: 8px;
+                        for o[i] in root.audio-outs: HorizontalLayout {
+                            spacing: 8px; height: 34px;
+                            LineEdit { width: 170px; text: o.name; edited(t) => { root.audio-out-name(i, t); } }
+                            ComboBox { horizontal-stretch: 1; model: root.audio-devices; current-index: o.device-index; selected(v) => { root.audio-out-device(i, self.current-index); } }
+                            ComboBox { width: 76px; model: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"]; current-index: o.left; selected(v) => { root.audio-out-channel(i, 0, self.current-index); } }
+                            ComboBox { width: 76px; model: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"]; current-index: o.right; selected(v) => { root.audio-out-channel(i, 1, self.current-index); } }
+                            ToolButton { width: 40px; icon: @image-url("icons/play.svg"); font: 14px; clicked => { root.audio-out-test(i); } }
+                            ToolButton { width: 40px; icon: @image-url("icons/close.svg"); font: 14px; clicked => { root.audio-out-remove(i); } }
+                        } }
+                    if root.page == 1: HorizontalLayout { alignment: start; spacing: 8px;
+                        ToolButton { text: @tr("+ Uitgang"); width: 150px; height: 32px; font: 13px; clicked => { root.audio-out-add(); } }
+                        ToolButton { text: @tr("Vernieuwen"); width: 150px; height: 32px; font: 13px; clicked => { root.audio-devices-refresh(); } } }
                     if root.page == 1: Hint { text: root.audio-info; }
-                    if root.page == 1: Text { text: @tr("Uitgang testen"); color: #c5cee0; font-size: 15px; font-weight: 700; }
-                    if root.page == 1: HorizontalLayout { spacing: 8px; height: 34px; alignment: start;
-                        ToolButton { text: @tr("Testtoon uitgang 1+2"); width: 220px; font: 13px; clicked => { root.audio-test(0); } }
-                        if root.audio-channels >= 4: ToolButton { text: @tr("Testtoon uitgang 3+4"); width: 220px; font: 13px; clicked => { root.audio-test(1); } }
-                        if root.audio-channels >= 6: ToolButton { text: @tr("Testtoon uitgang 5+6"); width: 220px; font: 13px; clicked => { root.audio-test(2); } } }
-                    if root.page == 1: Hint { text: @tr("Cues kiezen zelf een uitgangspaar met het veld Output (Audio 1+2, Audio 3+4, …). De uitgang hierboven geldt voor alle audio."); }
+                    if root.page == 1: Hint { text: @tr("De afspeelknop naast een uitgang speelt een testtoon. Een kaart wordt pas geopend als een uitgang of cue hem nodig heeft."); }
 
                     // ---- Video ----
                     if root.page == 2: SectionTitle { text: @tr("Video (schermen)"); }
                     if root.page == 2: CheckBox { text: @tr("Uitvoer op volledig scherm (anders in een gewoon venster)"); checked <=> root.video-fullscreen; toggled => { root.video-fullscreen-toggled(self.checked); } }
-                    if root.page == 2: HorizontalLayout { spacing: 12px; height: 58px;
-                        for n in [0, 1, 2, 3]: VerticalLayout { spacing: 2px;
-                            Text { text: "Display " + (n + 1) + " →"; color: #9aa6ba; font-size: 12px; }
-                            ComboBox { model: [@tr("Monitor 1"), @tr("Monitor 2"), @tr("Monitor 3"), @tr("Monitor 4")]; current-index: root.screen-indexes[n];
-                                selected(v) => { root.video-screen-selected(n, self.current-index); } } } }
+                    if root.page == 2: Hint { text: @tr("Maak uitgangen aan en kies per uitgang op welke monitor(en) het beeld komt. Meerdere monitoren = hetzelfde beeld op allemaal."); }
+                    if root.page == 2: HorizontalLayout { spacing: 8px; padding-right: 48px; height: 22px;
+                        HeaderCell { text: @tr("Naam"); width: 220px; }
+                        HeaderCell { text: @tr("Monitoren"); horizontal-stretch: 1; } }
+                    if root.page == 2: VerticalLayout { spacing: 8px;
+                        for v[i] in root.video-outs: HorizontalLayout {
+                            spacing: 8px; height: 34px;
+                            LineEdit { width: 220px; text: v.name; edited(t) => { root.video-out-name(i, t); } }
+                            CheckBox { width: 70px; text: "1"; checked: v.m1; toggled => { root.video-out-monitor(i, 0, self.checked); } }
+                            CheckBox { width: 70px; text: "2"; checked: v.m2; toggled => { root.video-out-monitor(i, 1, self.checked); } }
+                            CheckBox { width: 70px; text: "3"; checked: v.m3; toggled => { root.video-out-monitor(i, 2, self.checked); } }
+                            CheckBox { width: 70px; text: "4"; checked: v.m4; toggled => { root.video-out-monitor(i, 3, self.checked); } }
+                            Rectangle { horizontal-stretch: 1; }
+                            ToolButton { width: 40px; icon: @image-url("icons/close.svg"); font: 14px; clicked => { root.video-out-remove(i); } }
+                        } }
+                    if root.page == 2: HorizontalLayout { alignment: start; ToolButton { text: @tr("+ Uitgang"); width: 150px; height: 32px; font: 13px; clicked => { root.video-out-add(); } } }
                     if root.page == 2: Text { text: @tr("Pad naar mpv (leeg = automatisch zoeken)"); color: #c5cee0; font-size: 15px; font-weight: 700; }
                     if root.page == 2: HorizontalLayout { spacing: 8px; height: 34px;
                         LineEdit { horizontal-stretch: 1; text <=> root.mpv-path; placeholder-text: "C:\\mpv\\mpv.exe"; edited(t) => { root.mpv-path-edited(t); } }

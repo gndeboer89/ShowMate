@@ -2,21 +2,20 @@
 
 mod files;
 mod io;
+mod outputs;
 mod shortcuts;
 mod workflow;
 
 use crate::i18n::tr;
 use crate::settings::Settings;
 use crate::{CueRow, MainWindow, SettingsWindow};
-use showmate_audio::{
-    AudioClip, AudioOutput, ClipCache, ClipStatus, VoiceParams, parse_output_pair,
-};
+use showmate_audio::{AudioClip, AudioHub, ClipCache, ClipStatus};
 use showmate_core::{
     Cue, CueId, CueKind, CueState, EditError, Engine, Event, GroupMode, StartMode, SystemClock,
     demo::demo_show, format_delay, format_duration, format_timecode, parse_db, parse_duration,
 };
 use showmate_io::{MidiOut, OscSender};
-use showmate_video::{VideoAudio, VideoEvent, VideoOutput, parse_displays};
+use showmate_video::{VideoAudio, VideoEvent, VideoOutput};
 use slint::{Model, ModelRc, VecModel};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -39,7 +38,7 @@ pub struct AppState {
     volume_ok: bool,
     fade_in_ok: bool,
     fade_out_ok: bool,
-    audio: Option<AudioOutput>,
+    audio: AudioHub,
     audio_info: String,
     cache: ClipCache,
     meter: (f32, f32),
@@ -66,8 +65,6 @@ pub struct AppState {
     midi_ok: bool,
     osc_args_error: String,
     audio_devices: Vec<String>,
-    /// Apparaat waarmee `audio` nu geopend is (om wijzigingen te herkennen).
-    audio_device_open: Option<String>,
     settings_note: String,
     /// Instellingenlijsten en keuzelijsten opnieuw vullen (met/zonder rijen te vervangen).
     fill_settings: bool,
@@ -82,37 +79,6 @@ pub struct AppState {
 
 /// Fallback-samplerate voor de cache als er geen audio-apparaat is.
 const FALLBACK_RATE: u32 = 48_000;
-
-/// Opent de audio-uitgang (`None` = standaardapparaat) en geeft een beschrijving terug.
-/// Bestaat het gekozen apparaat niet meer, dan wordt het standaardapparaat gebruikt.
-fn open_audio(device: Option<&str>) -> (Option<AudioOutput>, String) {
-    let describe = |a: &AudioOutput| {
-        format!(
-            "{} ({} Hz, {} kan.)",
-            a.device_name(),
-            a.sample_rate(),
-            a.channels()
-        )
-    };
-    match AudioOutput::open(device) {
-        Ok(a) => {
-            let info = describe(&a);
-            (Some(a), info)
-        }
-        Err(e) if device.is_some() => match AudioOutput::open(None) {
-            Ok(a) => {
-                let info = t!(
-                    "{} (gekozen apparaat niet beschikbaar: {e})",
-                    "{} (chosen device unavailable: {e})",
-                    describe(&a)
-                );
-                (Some(a), info)
-            }
-            Err(e2) => (None, t!("geen audio: {e2}", "no audio: {e2}")),
-        },
-        Err(e) => (None, t!("geen audio: {e}", "no audio: {e}")),
-    }
-}
 
 /// Welke show bij het starten opent: `SHOWMATE_FILE` (ontwikkeling), anders de laatst geopende
 /// (als die nog bestaat), anders `show.showmate` in de programmamap.
@@ -204,8 +170,8 @@ impl AppState {
                 "Unsaved changes recovered from the automatic copy; save to keep them"
             );
         }
-        let audio_device_open = settings.audio.device.clone();
-        let (audio, audio_info) = open_audio(audio_device_open.as_deref());
+        let audio = AudioHub::new();
+        let audio_info = String::new();
         let video_cfg = settings.video.to_config();
         let video_cfg_key = format!("{video_cfg:?}");
         let video = VideoOutput::new(video_cfg);
@@ -216,11 +182,7 @@ impl AppState {
         if let Some(m) = settings_msg {
             message = m;
         }
-        let cache = ClipCache::new(
-            audio
-                .as_ref()
-                .map_or(FALLBACK_RATE, AudioOutput::sample_rate),
-        );
+        let cache = ClipCache::new();
         let shortcuts = crate::keys::Shortcuts::from_overrides(&settings.shortcuts);
         let mut state = Self {
             engine: Engine::new(SystemClock::new(), show),
@@ -259,7 +221,6 @@ impl AppState {
             midi_ok: true,
             osc_args_error: String::new(),
             audio_devices: Vec::new(),
-            audio_device_open,
             settings_note: String::new(),
             fill_settings: false,
             fill_names: false,
@@ -270,7 +231,7 @@ impl AppState {
             shortcuts,
             capturing: None,
         };
-        state.preload_all();
+        state.warm_audio();
         state.connect_midi();
         if state.message.is_empty()
             && let Some(e) = state.warm_video()
@@ -291,7 +252,7 @@ impl AppState {
             .cues
             .iter()
             .filter(|c| c.kind == CueKind::Video)
-            .flat_map(|c| parse_displays(&c.output))
+            .flat_map(|c| self.video_monitors(&c.output))
             .collect();
         displays.sort_unstable();
         displays.dedup();
@@ -321,6 +282,7 @@ impl AppState {
     }
 
     fn preload_all(&self) {
+        let rates = self.rates();
         for cue in self
             .engine
             .show()
@@ -329,7 +291,7 @@ impl AppState {
             .filter(|c| c.kind == CueKind::Audio)
         {
             if !cue.media.trim().is_empty() {
-                self.cache.request(&self.resolve_media(&cue.media));
+                self.cache.request(&self.resolve_media(&cue.media), &rates);
             }
         }
     }
@@ -373,21 +335,15 @@ impl AppState {
             match event {
                 Event::CueStarted(id) => self.start_cue(id),
                 Event::CueStopped(id) => {
-                    if let Some(a) = self.audio.as_mut() {
-                        let _ = a.stop(id.0);
-                    }
+                    self.audio.stop(id.0);
                     self.video.stop_cue(id.0);
                 }
                 Event::Paused => {
-                    if let Some(a) = self.audio.as_mut() {
-                        let _ = a.pause();
-                    }
+                    self.audio.pause();
                     self.video.set_paused(true);
                 }
                 Event::Resumed => {
-                    if let Some(a) = self.audio.as_mut() {
-                        let _ = a.resume();
-                    }
+                    self.audio.resume();
                     self.video.set_paused(false);
                 }
                 // Een cue met een eigen (kortere) duur kapt het beeld af.
@@ -416,7 +372,7 @@ impl AppState {
                 self.video
                     .start(
                         id.0,
-                        &parse_displays(&cue.output),
+                        &self.video_monitors(&cue.output),
                         &path,
                         cue.looping,
                         audio,
@@ -447,44 +403,7 @@ impl AppState {
                 return;
             }
         }
-        let problem = match (self.audio.as_mut(), cue.media.trim().is_empty()) {
-            (None, _) => Some(t!("geen audio-apparaat", "no audio device")),
-            (_, true) => Some(t!("geen bestand opgegeven", "no file specified")),
-            (Some(_), false) => {
-                let path = self.resolve_media(&cue.media);
-                match self.cache.status(&path) {
-                    ClipStatus::Ready(clip) => {
-                        self.engine.set_media_duration(id, clip.duration());
-                        let params = VoiceParams {
-                            id: id.0,
-                            clip,
-                            gain_db: cue.volume_db,
-                            fade_in: cue.fade_in,
-                            fade_out: cue.fade_out,
-                            looping: cue.looping,
-                            max_duration: if cue.looping { None } else { cue.duration },
-                            out_pair: parse_output_pair(&cue.output),
-                        };
-                        self.audio
-                            .as_mut()
-                            .and_then(|a| a.play(params).err())
-                            .map(|e| e.to_string())
-                    }
-                    ClipStatus::Loading => {
-                        Some(t!("{} wordt nog geladen", "{} is still loading", cue.media))
-                    }
-                    ClipStatus::Failed(e) => Some(format!("{}: {e}", cue.media)),
-                    ClipStatus::Unknown => {
-                        self.cache.request(&path);
-                        Some(t!(
-                            "{} was nog niet geladen",
-                            "{} had not been loaded yet",
-                            cue.media
-                        ))
-                    }
-                }
-            }
-        };
+        let problem = self.play_audio_cue(id, &cue);
         if let Some(problem) = problem {
             // Voorkom een cue die eindeloos "actief" blijft zonder geluid.
             self.engine.set_media_duration(id, Duration::ZERO);
@@ -532,6 +451,9 @@ impl AppState {
                 };
                 if !name.is_empty() {
                     let _ = self.engine.update_cue(i, |c| c.name = name.into());
+                }
+                if let Some(out) = self.first_output_name(kind) {
+                    let _ = self.engine.update_cue(i, |c| c.output = out);
                 }
                 if let Some(mode) = mode {
                     let name = match mode {
@@ -631,7 +553,8 @@ impl AppState {
         }
         self.edit(|c| c.media = text.clone());
         if self.selected.is_some() && !text.trim().is_empty() {
-            self.cache.request(&self.resolve_media(&text));
+            self.cache
+                .request(&self.resolve_media(&text), &self.rates());
         }
     }
 
@@ -730,12 +653,10 @@ impl AppState {
         self.handle_events(events);
         self.maybe_autosave();
         self.poll_copies();
-        if let Some(a) = self.audio.as_mut() {
-            a.drain_ended();
-            let (l, r) = a.take_peaks();
-            // Snelle attack, rustige release.
-            self.meter = (l.max(self.meter.0 * 0.88), r.max(self.meter.1 * 0.88));
-        }
+        self.audio.drain_ended();
+        let (l, r) = self.audio.take_peaks();
+        // Snelle attack, rustige release.
+        self.meter = (l.max(self.meter.0 * 0.88), r.max(self.meter.1 * 0.88));
         self.poll_video();
         self.refresh_live(ui);
         self.refresh_preview(ui);
@@ -930,7 +851,6 @@ impl AppState {
                 ui.set_insp_title(format!("{} • {} ({})", i + 1, c.name, type_label(c)).into());
                 ui.set_insp_name(c.name.as_str().into());
                 ui.set_insp_media(c.media.as_str().into());
-                ui.set_insp_output(c.output.as_str().into());
                 ui.set_insp_notes(c.notes.as_str().into());
                 ui.set_insp_start_index(match c.start {
                     StartMode::Go => 0,
@@ -969,7 +889,6 @@ impl AppState {
                 for set in [
                     MainWindow::set_insp_name,
                     MainWindow::set_insp_media,
-                    MainWindow::set_insp_output,
                     MainWindow::set_insp_notes,
                     MainWindow::set_insp_delay,
                     MainWindow::set_insp_duration,
