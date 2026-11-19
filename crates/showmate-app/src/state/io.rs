@@ -229,6 +229,7 @@ impl AppState {
 
     pub fn close_settings(&mut self) {
         self.settings_open = false;
+        self.capturing = None;
         self.osc.forget();
         self.connect_midi();
         self.settings_note.clear();
@@ -417,6 +418,7 @@ impl AppState {
     pub(super) fn fill_settings_ui(&self, ui: &MainWindow, rebuild_rows: bool) {
         let s = &self.settings;
         ui.set_settings_open(self.settings_open);
+        ui.set_keys(ModelRc::new(VecModel::from(self.key_rows())));
         ui.set_language_index(i32::from(self.settings.language == "en"));
         ui.set_settings_note(self.settings_note.as_str().into());
         ui.set_dest_names(strings(s.osc.destinations.iter().map(|d| d.name.clone())));

@@ -310,3 +310,35 @@ msgstr "⚙ Settings"
 msgctxt "MainWindow"
 msgid "💾 Opslaan"
 msgstr "💾 Save"
+
+msgctxt "MainWindow"
+msgid "Sneltoetsen"
+msgstr "Keyboard shortcuts"
+
+msgctxt "MainWindow"
+msgid "Druk een toets…"
+msgstr "Press a key…"
+
+msgctxt "MainWindow"
+msgid "— geen —"
+msgstr "— none —"
+
+msgctxt "MainWindow"
+msgid "Annuleer"
+msgstr "Cancel"
+
+msgctxt "MainWindow"
+msgid "Wijzig"
+msgstr "Change"
+
+msgctxt "MainWindow"
+msgid "Wis"
+msgstr "Clear"
+
+msgctxt "MainWindow"
+msgid "Standaard"
+msgstr "Default"
+
+msgctxt "MainWindow"
+msgid "Alles op standaard"
+msgstr "Reset all to default"

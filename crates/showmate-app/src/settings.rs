@@ -5,6 +5,7 @@
 //!   "osc":  { "destinations": [{ "name": "Lighting", "host": "192.168.1.50", "port": 8000 }],
 //!             "commands":     [{ "name": "Spots op", "address": "/eos/cue/1/fire", "args": "" }] },
 //!   "midi": { "output": "loopMIDI Port" },
+//!   "shortcuts": { "go": "Enter", "pause": "F5" },
 //!   "language": "nl",
 //!   "video": { "fullscreen": true, "screens": [1, 2], "mpv_path": "C:\\mpv\\mpv.exe", "extra_args": [] }
 //! }
@@ -24,6 +25,9 @@ pub struct Settings {
     pub osc: OscSettings,
     #[serde(default)]
     pub midi: MidiSettings,
+    /// Eigen sneltoetsen: actie → toets (bv. `"go": "Enter"`); alleen afwijkingen van de standaard.
+    #[serde(default)]
+    pub shortcuts: std::collections::BTreeMap<String, String>,
     /// Taal van de interface: `"nl"` (standaard) of `"en"`.
     #[serde(default = "default_language")]
     pub language: String,
@@ -95,6 +99,7 @@ impl Default for Settings {
             video: VideoSettings::default(),
             osc: OscSettings::default(),
             midi: MidiSettings::default(),
+            shortcuts: Default::default(),
             language: default_language(),
         }
     }
@@ -170,6 +175,19 @@ mod tests {
             serde_json::from_str(r#"{"video":{"fullscreen":true,"screens":[1,2]}}"#).unwrap();
         assert!(s.video.fullscreen);
         assert_eq!(s.video.screens, vec![1, 2]);
+    }
+
+    #[test]
+    fn shortcuts_round_trip() {
+        let dir = tmp("shortcuts");
+        let mut s = Settings::default();
+        s.shortcuts.insert("go".into(), "Enter".into());
+        s.shortcuts.insert("delete".into(), String::new());
+        save(&dir, &s).unwrap();
+        let (back, msg) = load(&dir);
+        assert!(msg.is_none());
+        assert_eq!(back.shortcuts, s.shortcuts);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

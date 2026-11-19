@@ -123,6 +123,11 @@ kinderen telt niet. Een `Auto`-cue direct na een groep volgt de start van de gro
 
 ## Sneltoetsen en veiligheid
 
+Alle sneltoetsen zijn aan te passen in **⚙ Instellingen → Sneltoetsen**: klik *Wijzig* en druk de nieuwe
+combinatie (bv. `Ctrl+Shift+G`, `F5`, `Enter`). Een toets die al in gebruik is wordt geweigerd, met de naam van
+de actie die hem heeft. *Wis* maakt een actie toetsloos, *Standaard* zet hem terug. Opgeslagen in
+`settings.json` (`"shortcuts": {"go": "Enter"}`; alleen afwijkingen). Standaardtoetsen:
+
 | Toets | Actie |
 |---|---|
 | `Spatie` | GO |

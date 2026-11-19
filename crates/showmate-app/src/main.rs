@@ -2,6 +2,7 @@
 
 #[macro_use]
 mod i18n;
+mod keys;
 mod settings;
 mod state;
 
@@ -77,6 +78,22 @@ fn main() -> Result<(), slint::PlatformError> {
     }));
     wire!(on_edit_looping, |st, v: bool| st.edit(|c| c.looping = v));
     wire!(on_language_selected, |st, i: i32| st.set_language(i));
+    wire!(on_key_capture, |st, i: i32| st.key_capture(i));
+    wire!(on_key_clear, |st, i: i32| st.key_clear(i));
+    wire!(on_key_reset, |st, i: i32| st.key_reset(i));
+    wire!(on_keys_reset_all, |st| st.keys_reset_all());
+    {
+        let (weak, app) = (ui.as_weak(), app.clone());
+        ui.on_key_event(move |text, ctrl, shift, alt, meta| {
+            let Some(ui) = weak.upgrade() else {
+                return false;
+            };
+            let mut st = app.borrow_mut();
+            let handled = st.handle_key(&text, ctrl, shift, alt, meta);
+            st.after_edit(&ui);
+            handled
+        });
+    }
     wire!(on_undo, |st| st.undo());
     wire!(on_redo, |st| st.redo());
     wire!(on_duplicate_cue, |st| st.duplicate_selected());

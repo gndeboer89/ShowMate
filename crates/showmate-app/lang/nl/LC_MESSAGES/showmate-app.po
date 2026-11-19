@@ -310,3 +310,35 @@ msgstr "⚙ Instellingen"
 msgctxt "MainWindow"
 msgid "💾 Opslaan"
 msgstr "💾 Opslaan"
+
+msgctxt "MainWindow"
+msgid "Sneltoetsen"
+msgstr "Sneltoetsen"
+
+msgctxt "MainWindow"
+msgid "Druk een toets…"
+msgstr "Druk een toets…"
+
+msgctxt "MainWindow"
+msgid "— geen —"
+msgstr "— geen —"
+
+msgctxt "MainWindow"
+msgid "Annuleer"
+msgstr "Annuleer"
+
+msgctxt "MainWindow"
+msgid "Wijzig"
+msgstr "Wijzig"
+
+msgctxt "MainWindow"
+msgid "Wis"
+msgstr "Wis"
+
+msgctxt "MainWindow"
+msgid "Standaard"
+msgstr "Standaard"
+
+msgctxt "MainWindow"
+msgid "Alles op standaard"
+msgstr "Alles op standaard"

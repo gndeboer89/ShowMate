@@ -1,6 +1,7 @@
 //! UI-staat naast de engine: selectie, bestandspad, rij-model en inspector-vulling.
 
 mod io;
+mod shortcuts;
 mod workflow;
 
 use crate::i18n::tr;
@@ -67,6 +68,8 @@ pub struct AppState {
     redo: Vec<Vec<Cue>>,
     last_edit: Option<(CueId, Instant)>,
     last_autosave: Instant,
+    shortcuts: crate::keys::Shortcuts,
+    capturing: Option<crate::keys::Action>,
 }
 
 /// Fallback-samplerate voor de cache als er geen audio-apparaat is.
@@ -206,6 +209,7 @@ impl AppState {
                 .as_ref()
                 .map_or(FALLBACK_RATE, AudioOutput::sample_rate),
         );
+        let shortcuts = crate::keys::Shortcuts::from_overrides(&settings.shortcuts);
         let mut state = Self {
             engine: Engine::new(SystemClock::new(), show),
             selected: None,
@@ -247,6 +251,8 @@ impl AppState {
             redo: Vec::new(),
             last_edit: None,
             last_autosave: Instant::now(),
+            shortcuts,
+            capturing: None,
         };
         state.preload_all();
         state.connect_midi();

@@ -12,6 +12,12 @@ export struct CommandRow {
     args: string,
 }
 
+export struct KeyRow {
+    action: string,
+    key: string,
+    capturing: bool,
+}
+
 export struct CueRow {
     number: int,
     name: string,
@@ -144,6 +150,7 @@ export component MainWindow inherits Window {
     // Instellingenvenster
     in property <bool> settings-open;
     in property <[DestRow]> dests;
+    in property <[KeyRow]> keys;
     in property <[CommandRow]> cmds;
     in property <[string]> midi-ports;
     in-out property <int> midi-index;
@@ -173,6 +180,11 @@ export component MainWindow inherits Window {
     callback edit-duration(string);
     callback edit-looping(bool);
     callback edit-mute(bool);
+    callback key-event(string, bool, bool, bool, bool) -> bool;
+    callback key-capture(int);
+    callback key-clear(int);
+    callback key-reset(int);
+    callback keys-reset-all();
     callback edit-group-mode(int);
     callback undo();
     callback redo();
@@ -204,19 +216,7 @@ export component MainWindow inherits Window {
 
     fs := FocusScope {
         key-pressed(event) => {
-            if (event.modifiers.control && event.text == "s") { root.save(); return accept; }
-            if (event.text == " ") { root.go(); return accept; }
-            if (event.text == "p") { root.pause(); return accept; }
-            if (event.text == Key.Escape && event.modifiers.shift) { root.panic(); return accept; }
-            if (event.text == Key.Escape) { root.stop(); return accept; }
-            if (event.modifiers.control && (event.text == "z" || event.text == "Z") && event.modifiers.shift) { root.redo(); return accept; }
-            if (event.modifiers.control && event.text == "z") { root.undo(); return accept; }
-            if (event.modifiers.control && event.text == "y") { root.redo(); return accept; }
-            if (event.modifiers.control && event.text == "d") { root.duplicate-cue(); return accept; }
-            if (event.modifiers.control && event.text == "r") { root.reset-show(); return accept; }
-            if (event.text == Key.Delete) { root.remove-cue(); return accept; }
-            if (event.text == Key.UpArrow) { root.select(max(0, root.selected - 1)); return accept; }
-            if (event.text == Key.DownArrow) { root.select(min(root.rows.length - 1, root.selected + 1)); return accept; }
+            if (root.key-event(event.text, event.modifiers.control, event.modifiers.shift, event.modifiers.alt, event.modifiers.meta)) { return accept; }
             reject
         }
 
@@ -485,6 +485,12 @@ export component MainWindow inherits Window {
     if root.settings-open: Rectangle {
         background: #000000b0;
         TouchArea { }
+        capture-fs := FocusScope {
+            key-pressed(event) => {
+                if (root.key-event(event.text, event.modifiers.control, event.modifiers.shift, event.modifiers.alt, event.modifiers.meta)) { return accept; }
+                reject
+            }
+        }
         Rectangle {
             width: min(960px, parent.width - 40px);
             height: min(640px, parent.height - 40px);
@@ -534,12 +540,28 @@ export component MainWindow inherits Window {
                             ToolButton { width: 110px; text: @tr("Vernieuwen"); font: 13px; clicked => { root.midi-refresh(); } }
                             Text { text: root.midi-status; color: #9aa6ba; font-size: 13px; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; }
                         }
+
+                        Text { text: @tr("Sneltoetsen"); color: #c5cee0; font-size: 15px; font-weight: 700; }
+                        for k[i] in root.keys: HorizontalLayout {
+                            spacing: 8px; height: 34px;
+                            Text { text: k.action; color: white; font-size: 14px; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+                            Rectangle {
+                                width: 190px; border-radius: 6px; border-width: 1px;
+                                border-color: k.capturing ? #4ade80 : #3a4558; background: #0b101b;
+                                Text { text: k.capturing ? @tr("Druk een toets…") : (k.key == "" ? @tr("— geen —") : k.key);
+                                    color: k.capturing ? #4ade80 : (k.key == "" ? #6b778c : white); font-size: 14px; }
+                            }
+                            ToolButton { width: 92px; text: k.capturing ? @tr("Annuleer") : @tr("Wijzig"); font: 13px; clicked => { root.key-capture(i); capture-fs.focus(); } }
+                            ToolButton { width: 64px; text: @tr("Wis"); font: 13px; clicked => { root.key-clear(i); } }
+                            ToolButton { width: 110px; text: @tr("Standaard"); font: 13px; clicked => { root.key-reset(i); } }
+                        }
+                        HorizontalLayout { alignment: start; ToolButton { text: @tr("Alles op standaard"); width: 200px; height: 32px; font: 13px; clicked => { root.keys-reset-all(); } } }
                     }
                 }
                 HorizontalLayout {
                     spacing: 12px; height: 38px;
                     Text { text: root.settings-note; color: #fbbf24; font-size: 13px; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
-                    ToolButton { text: @tr("Opslaan en sluiten"); width: 190px; fill: #1c8a2e; clicked => { root.close-settings(); } }
+                    ToolButton { text: @tr("Opslaan en sluiten"); width: 190px; fill: #1c8a2e; clicked => { root.close-settings(); fs.focus(); } }
                 }
             }
         }
