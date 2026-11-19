@@ -824,7 +824,8 @@ impl AppState {
         ui.set_message(self.message.as_str().into());
         ui.set_window_title(
             format!(
-                "ShowMate — {}{}",
+                "ShowMate {} — {}{}",
+                env!("CARGO_PKG_VERSION"),
                 show.name,
                 if self.dirty { " *" } else { "" }
             )
