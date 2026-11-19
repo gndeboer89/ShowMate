@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 showmate-core = { path = "../showmate-core" }
+showmate-audio = { path = "../showmate-audio" }
 slint = "1"
 
 [build-dependencies]

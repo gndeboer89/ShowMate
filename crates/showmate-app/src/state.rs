@@ -1,13 +1,17 @@
 //! UI-staat naast de engine: selectie, bestandspad, rij-model en inspector-vulling.
 
 use crate::{CueRow, MainWindow};
+use showmate_audio::{
+    AudioClip, AudioOutput, ClipCache, ClipStatus, VoiceParams, parse_output_pair,
+};
 use showmate_core::{
-    Cue, CueKind, CueState, EditError, Engine, Show, StartMode, SystemClock, demo::demo_show,
-    format_delay, format_duration, format_timecode, parse_duration,
+    Cue, CueId, CueKind, CueState, EditError, Engine, Event, Show, StartMode, SystemClock,
+    demo::demo_show, format_delay, format_duration, format_timecode, parse_db, parse_duration,
 };
 use slint::{Model, ModelRc, VecModel};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 const FPS: u32 = 25;
@@ -22,7 +26,18 @@ pub struct AppState {
     duration_ok: bool,
     rows: Rc<VecModel<CueRow>>,
     fill_inspector: bool,
+    volume_ok: bool,
+    fade_in_ok: bool,
+    fade_out_ok: bool,
+    audio: Option<AudioOutput>,
+    audio_info: String,
+    cache: ClipCache,
+    meter: (f32, f32),
+    wave_cue: Option<CueId>,
 }
+
+/// Fallback-samplerate voor de cache als er geen audio-apparaat is.
+const FALLBACK_RATE: u32 = 48_000;
 
 /// `SHOWMATE_FILE`, anders `%APPDATA%\ShowMate\show.showmate`, anders `./show.showmate`.
 fn default_path() -> PathBuf {
@@ -76,7 +91,24 @@ impl AppState {
                 demo_show()
             }
         };
-        Self {
+        let (audio, audio_info) = match AudioOutput::open_default() {
+            Ok(a) => {
+                let info = format!(
+                    "{} ({} Hz, {} kan.)",
+                    a.device_name(),
+                    a.sample_rate(),
+                    a.channels()
+                );
+                (Some(a), info)
+            }
+            Err(e) => (None, format!("geen audio: {e}")),
+        };
+        let cache = ClipCache::new(
+            audio
+                .as_ref()
+                .map_or(FALLBACK_RATE, AudioOutput::sample_rate),
+        );
+        let state = Self {
             engine: Engine::new(SystemClock::new(), show),
             selected: None,
             path,
@@ -86,6 +118,155 @@ impl AppState {
             duration_ok: true,
             rows: Rc::new(VecModel::default()),
             fill_inspector: false,
+            volume_ok: true,
+            fade_in_ok: true,
+            fade_out_ok: true,
+            audio,
+            audio_info,
+            cache,
+            meter: (0.0, 0.0),
+            wave_cue: None,
+        };
+        state.preload_all();
+        state
+    }
+
+    // ---- media -----------------------------------------------------
+
+    /// Relatieve paden gelden t.o.v. de map van de showfile (ook de submap `media`).
+    fn resolve_media(&self, media: &str) -> PathBuf {
+        let p = Path::new(media);
+        if p.is_absolute() {
+            return p.to_path_buf();
+        }
+        let base = self
+            .path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default();
+        let direct = base.join(p);
+        if direct.exists() {
+            direct
+        } else {
+            base.join("media").join(p)
+        }
+    }
+
+    fn preload_all(&self) {
+        for cue in self
+            .engine
+            .show()
+            .cues
+            .iter()
+            .filter(|c| c.kind == CueKind::Audio)
+        {
+            if !cue.media.trim().is_empty() {
+                self.cache.request(&self.resolve_media(&cue.media));
+            }
+        }
+    }
+
+    fn clip_for_kind(&self, cue: &Cue) -> Option<Arc<AudioClip>> {
+        if cue.kind == CueKind::Audio && !cue.media.trim().is_empty() {
+            self.clip_for(cue)
+        } else {
+            None
+        }
+    }
+
+    fn clip_for(&self, cue: &Cue) -> Option<Arc<AudioClip>> {
+        match self.cache.status(&self.resolve_media(&cue.media)) {
+            ClipStatus::Ready(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    // ---- transport ---------------------------------------------------
+
+    pub fn go(&mut self) {
+        let events = self.engine.go();
+        self.handle_events(events);
+    }
+
+    pub fn toggle_pause(&mut self) {
+        let events = self.engine.toggle_pause();
+        self.handle_events(events);
+    }
+
+    pub fn stop(&mut self) {
+        let events = self.engine.stop();
+        self.handle_events(events);
+    }
+
+    /// Vertaalt engine-events naar audio-acties.
+    fn handle_events(&mut self, events: Vec<Event>) {
+        for event in events {
+            match event {
+                Event::CueStarted(id) => self.start_cue(id),
+                Event::CueStopped(id) => {
+                    if let Some(a) = self.audio.as_mut() {
+                        let _ = a.stop(id.0);
+                    }
+                }
+                Event::Paused => {
+                    if let Some(a) = self.audio.as_mut() {
+                        let _ = a.pause();
+                    }
+                }
+                Event::Resumed => {
+                    if let Some(a) = self.audio.as_mut() {
+                        let _ = a.resume();
+                    }
+                }
+                Event::CueFinished(_) => {}
+            }
+        }
+    }
+
+    fn start_cue(&mut self, id: CueId) {
+        let Some(index) = self.engine.show().cues.iter().position(|c| c.id == id) else {
+            return;
+        };
+        let cue = self.engine.show().cues[index].clone();
+        if cue.kind != CueKind::Audio {
+            return;
+        }
+        let problem = match (self.audio.as_mut(), cue.media.trim().is_empty()) {
+            (None, _) => Some("geen audio-apparaat".to_string()),
+            (_, true) => Some("geen bestand opgegeven".to_string()),
+            (Some(_), false) => {
+                let path = self.resolve_media(&cue.media);
+                match self.cache.status(&path) {
+                    ClipStatus::Ready(clip) => {
+                        self.engine.set_media_duration(id, clip.duration());
+                        let params = VoiceParams {
+                            id: id.0,
+                            clip,
+                            gain_db: cue.volume_db,
+                            fade_in: cue.fade_in,
+                            fade_out: cue.fade_out,
+                            looping: cue.looping,
+                            max_duration: if cue.looping { None } else { cue.duration },
+                            out_pair: parse_output_pair(&cue.output),
+                        };
+                        self.audio
+                            .as_mut()
+                            .and_then(|a| a.play(params).err())
+                            .map(|e| e.to_string())
+                    }
+                    ClipStatus::Loading => Some(format!("{} wordt nog geladen", cue.media)),
+                    ClipStatus::Failed(e) => Some(format!("{}: {e}", cue.media)),
+                    ClipStatus::Unknown => {
+                        self.cache.request(&path);
+                        Some(format!("{} was nog niet geladen", cue.media))
+                    }
+                }
+            }
+        };
+        if let Some(problem) = problem {
+            // Voorkom een cue die eindeloos "actief" blijft zonder geluid.
+            self.engine.set_media_duration(id, Duration::ZERO);
+            self.message = format!("Cue {}: {problem}", index + 1);
         }
     }
 
@@ -96,6 +277,9 @@ impl AppState {
         self.selected = usize::try_from(index).ok().filter(|i| *i < n);
         self.delay_ok = true;
         self.duration_ok = true;
+        self.volume_ok = true;
+        self.fade_in_ok = true;
+        self.fade_out_ok = true;
         self.message.clear();
         self.fill_inspector = true;
     }
@@ -174,6 +358,44 @@ impl AppState {
         }
     }
 
+    pub fn edit_media(&mut self, text: &str) {
+        let text = text.to_string();
+        self.edit(|c| c.media = text.clone());
+        if self.selected.is_some() && !text.trim().is_empty() {
+            self.cache.request(&self.resolve_media(&text));
+        }
+    }
+
+    pub fn edit_volume(&mut self, text: &str) {
+        let parsed = parse_db(text);
+        self.volume_ok = parsed.is_some();
+        if let Some(db) = parsed {
+            self.edit(|c| c.volume_db = db);
+        }
+    }
+
+    pub fn edit_fade(&mut self, text: &str, fade_in: bool) {
+        let parsed = if text.trim().is_empty() {
+            Some(Duration::ZERO)
+        } else {
+            parse_duration(text)
+        };
+        if fade_in {
+            self.fade_in_ok = parsed.is_some();
+        } else {
+            self.fade_out_ok = parsed.is_some();
+        }
+        if let Some(d) = parsed {
+            self.edit(|c| {
+                if fade_in {
+                    c.fade_in = d
+                } else {
+                    c.fade_out = d
+                }
+            });
+        }
+    }
+
     pub fn save(&mut self) {
         if let Some(dir) = self.path.parent().filter(|d| !d.as_os_str().is_empty()) {
             let _ = std::fs::create_dir_all(dir);
@@ -209,7 +431,14 @@ impl AppState {
 
     /// Elke timer-tick.
     pub fn tick(&mut self, ui: &MainWindow) {
-        self.engine.tick();
+        let events = self.engine.tick();
+        self.handle_events(events);
+        if let Some(a) = self.audio.as_mut() {
+            a.drain_ended();
+            let (l, r) = a.take_peaks();
+            // Snelle attack, rustige release.
+            self.meter = (l.max(self.meter.0 * 0.88), r.max(self.meter.1 * 0.88));
+        }
         self.refresh_live(ui);
     }
 
@@ -220,6 +449,7 @@ impl AppState {
     }
 
     fn refresh_live(&mut self, ui: &MainWindow) {
+        self.refresh_wave(ui);
         let show = self.engine.show();
         let rows: Vec<CueRow> = show
             .cues
@@ -240,7 +470,10 @@ impl AppState {
                 duration: match (cue.looping, cue.duration) {
                     (true, _) => "Loop".into(),
                     (false, Some(d)) => format_duration(d).into(),
-                    (false, None) => "—".into(),
+                    (false, None) => match self.clip_for_kind(cue) {
+                        Some(clip) => format_duration(clip.duration()).into(),
+                        None => "—".into(),
+                    },
                 },
                 output: cue.output.as_str().into(),
                 status: status_label(*state).into(),
@@ -264,6 +497,12 @@ impl AppState {
         ui.set_has_selection(self.selected.is_some());
         ui.set_timecode(format_timecode(self.engine.show_time(), FPS).into());
         ui.set_paused(self.engine.is_paused());
+        ui.set_volume_ok(self.volume_ok);
+        ui.set_fade_in_ok(self.fade_in_ok);
+        ui.set_fade_out_ok(self.fade_out_ok);
+        ui.set_audio_info(self.audio_info.as_str().into());
+        ui.set_meter_l(meter_fraction(self.meter.0));
+        ui.set_meter_r(meter_fraction(self.meter.1));
         ui.set_delay_ok(self.delay_ok);
         ui.set_duration_ok(self.duration_ok);
         ui.set_message(self.message.as_str().into());
@@ -327,6 +566,30 @@ impl AppState {
                 ui.set_insp_delay(plain_secs(c.delay).into());
                 ui.set_insp_duration(c.duration.map(plain_secs).unwrap_or_default().into());
                 ui.set_insp_looping(c.looping);
+                ui.set_insp_volume(
+                    if c.volume_db == 0.0 {
+                        String::new()
+                    } else {
+                        format!("{}", c.volume_db)
+                    }
+                    .into(),
+                );
+                ui.set_insp_fade_in(
+                    if c.fade_in.is_zero() {
+                        String::new()
+                    } else {
+                        plain_secs(c.fade_in)
+                    }
+                    .into(),
+                );
+                ui.set_insp_fade_out(
+                    if c.fade_out.is_zero() {
+                        String::new()
+                    } else {
+                        plain_secs(c.fade_out)
+                    }
+                    .into(),
+                );
             }
             None => {
                 for set in [
@@ -336,6 +599,9 @@ impl AppState {
                     MainWindow::set_insp_notes,
                     MainWindow::set_insp_delay,
                     MainWindow::set_insp_duration,
+                    MainWindow::set_insp_volume,
+                    MainWindow::set_insp_fade_in,
+                    MainWindow::set_insp_fade_out,
                 ] {
                     set(ui, "".into());
                 }
@@ -344,4 +610,84 @@ impl AppState {
             }
         }
     }
+
+    /// Golfvorm en voortgang van de actieve (anders de geselecteerde) audio-cue.
+    fn refresh_wave(&mut self, ui: &MainWindow) {
+        let cues = &self.engine.show().cues;
+        let active = (0..cues.len()).find(|&i| {
+            cues[i].kind == CueKind::Audio
+                && matches!(self.engine.states()[i], CueState::Active { .. })
+        });
+        let shown = active.or(self.selected.filter(|&i| cues[i].kind == CueKind::Audio));
+        let Some(i) = shown else {
+            if self.wave_cue.take().is_some() {
+                ui.set_wave_commands("".into());
+            }
+            ui.set_wave_title("".into());
+            ui.set_wave_time("".into());
+            ui.set_wave_progress(0.0);
+            return;
+        };
+        let cue = cues[i].clone();
+        let Some(clip) = self.clip_for(&cue) else {
+            if self.wave_cue.take().is_some() {
+                ui.set_wave_commands("".into());
+            }
+            ui.set_wave_title(format!("{} • {}", i + 1, cue.name).into());
+            ui.set_wave_time(
+                match self.cache.status(&self.resolve_media(&cue.media)) {
+                    ClipStatus::Loading => "laden…".to_string(),
+                    ClipStatus::Failed(e) => e,
+                    _ => "geen audio geladen".to_string(),
+                }
+                .into(),
+            );
+            ui.set_wave_progress(0.0);
+            return;
+        };
+        if self.wave_cue != Some(cue.id) {
+            self.wave_cue = Some(cue.id);
+            ui.set_wave_commands(wave_path(clip.peaks()).into());
+        }
+        let total = clip.duration();
+        let elapsed = self.engine.progress(i).map_or(Duration::ZERO, |(e, _)| {
+            if cue.looping && !total.is_zero() {
+                Duration::from_secs_f64(e.as_secs_f64() % total.as_secs_f64())
+            } else {
+                e.min(total)
+            }
+        });
+        ui.set_wave_title(format!("{} • {}", i + 1, cue.name).into());
+        ui.set_wave_time(format!("{} / {}", format_clock(elapsed), format_clock(total)).into());
+        ui.set_wave_progress(if total.is_zero() {
+            0.0
+        } else {
+            (elapsed.as_secs_f64() / total.as_secs_f64()) as f32
+        });
+    }
+}
+
+/// Lineaire piek → 0..1 op een schaal van −60..0 dB.
+fn meter_fraction(peak: f32) -> f32 {
+    if peak <= 0.001 {
+        0.0
+    } else {
+        ((20.0 * peak.log10() + 60.0) / 60.0).clamp(0.0, 1.0)
+    }
+}
+
+/// SVG-pad (viewbox 512×100) met één verticale streep per piek, gespiegeld rond het midden.
+fn wave_path(peaks: &[f32]) -> String {
+    use std::fmt::Write;
+    let mut d = String::with_capacity(peaks.len() * 18);
+    for (x, p) in peaks.iter().enumerate() {
+        let h = (p * 48.0).max(0.5);
+        let _ = write!(d, "M {x} {:.1} L {x} {:.1} ", 50.0 - h, 50.0 + h);
+    }
+    d
+}
+
+fn format_clock(d: Duration) -> String {
+    let s = d.as_secs();
+    format!("{:02}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
 }

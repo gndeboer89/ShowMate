@@ -9,6 +9,7 @@ pub fn demo_show() -> Show {
         Cue::new(z, "Sfeer muziek", CueKind::Audio)
             .media("sfeer_opening.mp3")
             .duration_secs(192.0)
+            .fade_in_secs(2.0)
             .output("Audio 1+2"),
     );
     show.push(
@@ -38,6 +39,7 @@ pub fn demo_show() -> Show {
             .auto()
             .delay_secs(5.0)
             .duration_secs(90.0)
+            .volume_db(-6.0)
             .output("Audio 1+2"),
     );
     show.push(

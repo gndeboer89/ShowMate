@@ -47,6 +47,13 @@ pub struct Cue {
     pub output: String,
     #[serde(default)]
     pub notes: String,
+    /// Volume van audio-cues in dB (0 = ongewijzigd).
+    #[serde(default)]
+    pub volume_db: f32,
+    #[serde(with = "serde_millis", default)]
+    pub fade_in: Duration,
+    #[serde(with = "serde_millis", default)]
+    pub fade_out: Duration,
 }
 
 impl Cue {
@@ -62,6 +69,9 @@ impl Cue {
             looping: false,
             output: String::new(),
             notes: String::new(),
+            volume_db: 0.0,
+            fade_in: Duration::ZERO,
+            fade_out: Duration::ZERO,
         }
     }
 
@@ -103,6 +113,21 @@ impl Cue {
 
     pub fn output(mut self, output: impl Into<String>) -> Self {
         self.output = output.into();
+        self
+    }
+
+    pub fn volume_db(mut self, db: f32) -> Self {
+        self.volume_db = db;
+        self
+    }
+
+    pub fn fade_in_secs(mut self, secs: f64) -> Self {
+        self.fade_in = Duration::from_secs_f64(secs);
+        self
+    }
+
+    pub fn fade_out_secs(mut self, secs: f64) -> Self {
+        self.fade_out = Duration::from_secs_f64(secs);
         self
     }
 

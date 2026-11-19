@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["crates/showmate-core", "crates/showmate-app"]
+members = ["crates/showmate-core", "crates/showmate-audio", "crates/showmate-app"]
 # `cargo test` / `cargo build` op de root bouwen alleen de engine; de GUI bouw je met -p showmate-app.
-default-members = ["crates/showmate-core"]
+default-members = ["crates/showmate-core", "crates/showmate-audio"]
 
 [workspace.package]
 version = "0.1.0"

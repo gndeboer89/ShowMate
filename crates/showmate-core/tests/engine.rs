@@ -328,3 +328,56 @@ fn rejects_newer_format_and_garbage() {
         Err(ShowError::UnsupportedVersion(99))
     ));
 }
+
+#[test]
+fn media_duration_ends_cue_without_own_duration() {
+    let (mut e, clock) = engine(vec![cue("snd", CueKind::Audio)]);
+    e.go();
+    e.set_media_duration(id(&e, 0), secs(4.0));
+    clock.advance_secs(3.9);
+    assert!(e.tick().is_empty());
+    clock.advance_secs(0.1);
+    assert_eq!(e.tick(), vec![Event::CueFinished(id(&e, 0))]);
+}
+
+#[test]
+fn own_duration_and_loop_win_over_media_duration() {
+    let (mut e, clock) = engine(vec![
+        cue("a", CueKind::Audio).duration_secs(2.0),
+        cue("b", CueKind::Audio).auto().looping(),
+    ]);
+    e.go();
+    e.set_media_duration(id(&e, 0), secs(60.0));
+    e.set_media_duration(id(&e, 1), secs(1.0));
+    clock.advance_secs(2.0);
+    e.tick();
+    assert_eq!(e.states()[0], CueState::Finished);
+    assert!(matches!(e.states()[1], CueState::Active { .. }));
+}
+
+#[test]
+fn pause_and_resume_emit_events_once() {
+    let (mut e, _c) = engine(vec![cue("a", CueKind::Audio)]);
+    assert_eq!(e.pause(), vec![Event::Paused]);
+    assert!(e.pause().is_empty());
+    assert_eq!(e.resume(), vec![Event::Resumed]);
+    assert!(e.resume().is_empty());
+}
+
+#[test]
+fn stop_while_paused_resumes() {
+    let (mut e, _c) = engine(vec![cue("a", CueKind::Audio)]);
+    e.go();
+    e.pause();
+    let ev = e.stop();
+    assert_eq!(ev, vec![Event::CueStopped(id(&e, 0)), Event::Resumed]);
+}
+
+#[test]
+fn new_audio_fields_default_in_old_showfiles() {
+    let json =
+        r#"{"name":"oud","cues":[{"id":1,"name":"x","kind":"audio","start":"go"}],"next_id":2}"#;
+    let show = Show::from_json(json).unwrap();
+    assert_eq!(show.cues[0].volume_db, 0.0);
+    assert_eq!(show.cues[0].fade_in, Duration::ZERO);
+}

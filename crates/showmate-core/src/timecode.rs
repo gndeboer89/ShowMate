@@ -64,6 +64,21 @@ pub fn parse_duration(input: &str) -> Option<Duration> {
     (total <= 359_999.0).then(|| Duration::from_secs_f64(total))
 }
 
+/// Leest een dB-waarde (`-6`, `+3`, `-6 dB`, `-6,5`). Leeg = 0 dB. Bereik −60..=+12.
+pub fn parse_db(input: &str) -> Option<f32> {
+    let t = input.trim();
+    let t = t
+        .strip_suffix("dB")
+        .or_else(|| t.strip_suffix("db"))
+        .unwrap_or(t)
+        .trim();
+    if t.is_empty() {
+        return Some(0.0);
+    }
+    let v: f32 = t.replace(',', ".").parse().ok()?;
+    (v.is_finite() && (-60.0..=12.0).contains(&v)).then_some(v)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,5 +121,16 @@ mod tests {
         assert_eq!(format_duration(Duration::from_secs(3661)), "1:01:01");
         assert_eq!(format_delay(Duration::from_secs(5)), "+5.0 s");
         assert_eq!(format_delay(Duration::from_secs(80)), "+01:20");
+    }
+
+    #[test]
+    fn parses_db() {
+        assert_eq!(parse_db("-6"), Some(-6.0));
+        assert_eq!(parse_db("+3 dB"), Some(3.0));
+        assert_eq!(parse_db("-6,5dB"), Some(-6.5));
+        assert_eq!(parse_db(""), Some(0.0));
+        assert_eq!(parse_db("20"), None);
+        assert_eq!(parse_db("-70"), None);
+        assert_eq!(parse_db("luid"), None);
     }
 }

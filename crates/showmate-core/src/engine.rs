@@ -7,12 +7,13 @@
 //!   cues met `StartMode::Auto` worden meegepland, elk `delay` na de start van
 //!   de vorige. De eerstvolgende `Go`-cue wacht op de volgende GO.
 //! - Een cue eindigt na `duration`. Zonder duur eindigen Osc/Midi-cues direct;
-//!   Audio/Video lopen tot STOP. `looping` cues eindigen nooit vanzelf.
+//!   Audio/Video eindigen na de gemelde mediaduur, of lopen anders tot STOP. `looping` cues eindigen nooit vanzelf.
 //! - De engine wordt aangedreven door [`Engine::tick`]; zij doet zelf geen I/O.
 
 use crate::clock::Clock;
 use crate::cue::{Cue, CueId, CueKind, StartMode};
 use crate::show::Show;
+use std::collections::HashMap;
 use std::time::Duration;
 
 /// Runtime-status van één cue.
@@ -36,6 +37,9 @@ pub enum Event {
     CueStarted(CueId),
     CueFinished(CueId),
     CueStopped(CueId),
+    /// Alles is gepauzeerd (uitvoerlaag moet bevriezen).
+    Paused,
+    Resumed,
 }
 
 /// Waarom een bewerking is geweigerd.
@@ -65,6 +69,8 @@ pub struct Engine<C: Clock> {
     last_clock: Duration,
     started: bool,
     paused: bool,
+    /// Door de uitvoerlaag gemelde mediaduur, gebruikt als een cue zelf geen duur heeft.
+    media_len: HashMap<CueId, Duration>,
 }
 
 impl<C: Clock> Engine<C> {
@@ -79,7 +85,14 @@ impl<C: Clock> Engine<C> {
             last_clock,
             started: false,
             paused: false,
+            media_len: HashMap::new(),
         }
+    }
+
+    /// Meldt de lengte van het media-bestand van een cue (bv. na het laden van audio).
+    /// Wordt gebruikt zolang de cue geen eigen duur heeft en niet loopt.
+    pub fn set_media_duration(&mut self, id: CueId, len: Duration) {
+        self.media_len.insert(id, len);
     }
 
     // ---- bediening ---------------------------------------------------
@@ -110,14 +123,20 @@ impl<C: Clock> Engine<C> {
     }
 
     pub fn pause(&mut self) -> Vec<Event> {
-        let events = self.tick();
-        self.paused = true;
+        let mut events = self.tick();
+        if !self.paused {
+            self.paused = true;
+            events.push(Event::Paused);
+        }
         events
     }
 
     pub fn resume(&mut self) -> Vec<Event> {
-        let events = self.tick(); // synchroniseert de klok zonder showtijd op te tellen
-        self.paused = false;
+        let mut events = self.tick(); // synchroniseert de klok zonder showtijd op te tellen
+        if self.paused {
+            self.paused = false;
+            events.push(Event::Resumed);
+        }
         events
     }
 
@@ -143,7 +162,10 @@ impl<C: Clock> Engine<C> {
                 _ => {}
             }
         }
-        self.paused = false;
+        if self.paused {
+            self.paused = false;
+            events.push(Event::Resumed);
+        }
         events
     }
 
@@ -201,7 +223,7 @@ impl<C: Clock> Engine<C> {
         match cue.duration {
             Some(d) => Some(started_at + d),
             None if matches!(cue.kind, CueKind::Osc | CueKind::Midi) => Some(started_at),
-            None => None,
+            None => self.media_len.get(&cue.id).map(|len| started_at + *len),
         }
     }
 

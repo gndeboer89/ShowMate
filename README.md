@@ -7,6 +7,7 @@ Cue-gebaseerde show-control software voor Windows, geschreven in Rust met een Sl
 | Crate | Inhoud |
 |---|---|
 | `crates/showmate-core` | Cue-model, showfile (JSON), klok, cue-engine. Geen GUI/audio/video; volledig testbaar. |
+| `crates/showmate-audio` | Decoderen (symphonia), pure mixer, achtergrond-cache, cpal-uitvoer. Mixer en decoder zijn testbaar zonder geluidskaart. |
 | `crates/showmate-app` | Slint-GUI: cue-lijst, inspector, cues toevoegen/verwijderen/verplaatsen, opslaan. |
 
 ## Bouwen
@@ -31,7 +32,7 @@ Showfile: `%APPDATA%\ShowMate\show.showmate` (override met `SHOWMATE_FILE`); zon
 
 ## Roadmap
 
-0. Opzet ✅ · 1. Engine ✅ · 2. GUI (inspector, bewerken) ✅ · 3. Audio · 4. Video (libmpv)
+0. Opzet ✅ · 1. Engine ✅ · 2. GUI (inspector, bewerken) ✅ · 3. Audio ✅ · 4. Video (libmpv)
 5. OSC/MIDI · 6. Groep/Parallel/Loop, installer
 
 ## Bewerken
@@ -39,3 +40,16 @@ Showfile: `%APPDATA%\ShowMate\show.showmate` (override met `SHOWMATE_FILE`); zon
 De cue-lijst (invoegen, verwijderen, verplaatsen) is vergrendeld zolang er cues *gepland* staan;
 druk eerst op STOP. Een actieve cue kan niet verwijderd worden. Eigenschappen (naam, delay, duur, …)
 zijn altijd aanpasbaar en gelden voor latere planning.
+
+## Audio
+
+- Formaten: mp3, wav, flac, ogg/vorbis, aac/m4a. Alles wordt bij het openen van de show op de
+  achtergrond gedecodeerd en naar de samplerate van het apparaat omgezet, zodat GO nooit wacht.
+- Relatieve mediapaden zijn relatief aan de map van de showfile (of de submap `media`).
+- Per cue: volume (dB), fade in, fade out, loop, uitgang (`Audio 1+2`, `Audio 3+4`, …).
+- STOP en pauze gebruiken een korte ramp tegen kliks. De mixer begrenst de som op 0 dBFS.
+- Zonder bestandsduur eindigt een audio-cue na de lengte van het bestand.
+- Probeer zonder GUI: `cargo run -p showmate-audio --example play -- bestand.wav`.
+
+Bekende beperkingen: lineaire resampling (geen sinc), WASAPI shared mode (geen ASIO),
+cues starten op de UI-timer (≤ 20 ms jitter) tot de engine een eigen thread krijgt.

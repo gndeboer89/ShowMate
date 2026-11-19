@@ -40,9 +40,9 @@ fn main() -> Result<(), slint::PlatformError> {
         }};
     }
 
-    wire!(on_go, |st| st.engine.go());
-    wire!(on_pause, |st| st.engine.toggle_pause());
-    wire!(on_stop, |st| st.engine.stop());
+    wire!(on_go, |st| st.go());
+    wire!(on_pause, |st| st.toggle_pause());
+    wire!(on_stop, |st| st.stop());
     wire!(on_select, |st, i: i32| st.select(i));
     wire!(on_add_cue, |st, kind: slint::SharedString| st
         .add_cue(&kind));
@@ -53,7 +53,13 @@ fn main() -> Result<(), slint::PlatformError> {
     wire!(on_edit_name, |st, v: slint::SharedString| st
         .edit(|c| c.name = v.to_string()));
     wire!(on_edit_media, |st, v: slint::SharedString| st
-        .edit(|c| c.media = v.to_string()));
+        .edit_media(&v));
+    wire!(on_edit_volume, |st, v: slint::SharedString| st
+        .edit_volume(&v));
+    wire!(on_edit_fade_in, |st, v: slint::SharedString| st
+        .edit_fade(&v, true));
+    wire!(on_edit_fade_out, |st, v: slint::SharedString| st
+        .edit_fade(&v, false));
     wire!(on_edit_output, |st, v: slint::SharedString| st
         .edit(|c| c.output = v.to_string()));
     wire!(on_edit_notes, |st, v: slint::SharedString| st
