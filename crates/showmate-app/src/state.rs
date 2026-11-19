@@ -782,7 +782,7 @@ impl AppState {
                     .map_or(cue.media.as_str(), |l| l.0.as_str())
                     .into(),
                 start: if children.get(i).copied().unwrap_or(false) {
-                    "↳"
+                    "›"
                 } else {
                     match cue.start {
                         StartMode::Go => "GO",

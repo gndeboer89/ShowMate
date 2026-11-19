@@ -37,6 +37,7 @@ export struct CueRow {
 
 component ToolButton inherits Rectangle {
     in property <string> text;
+    in property <image> icon;
     in property <color> fill: #232b3a;
     in property <length> font: 15px;
     in property <bool> enabled: true;
@@ -46,7 +47,15 @@ component ToolButton inherits Rectangle {
     border-color: #3a4558;
     opacity: enabled ? 1 : 0.4;
     background: touch.has-hover && enabled ? fill.brighter(0.15) : fill;
-    Text { text: root.text; color: white; font-size: root.font; font-weight: 600; }
+    HorizontalLayout {
+        alignment: center;
+        spacing: 8px;
+        if root.icon.width > 0: Image {
+            source: root.icon; colorize: white; image-fit: contain;
+            width: root.font + 4px; height: root.font + 4px; y: (parent.height - self.height) / 2;
+        }
+        if root.text != "": Text { text: root.text; color: white; font-size: root.font; font-weight: 600; vertical-alignment: center; }
+    }
     touch := TouchArea { clicked => { if (root.enabled) { root.clicked(); } } }
 }
 
@@ -78,6 +87,7 @@ component Cell inherits Text {
 export component MainWindow inherits Window {
     in property <string> window-title: "ShowMate";
     title: root.window-title;
+    icon: @image-url("../../../assets/icon-256.png");
     preferred-width: 1200px;
     preferred-height: 960px;
     min-width: 960px;
@@ -245,13 +255,13 @@ export component MainWindow inherits Window {
             HorizontalLayout {
                 spacing: 12px;
                 height: 92px;
-                ToolButton { text: @tr("▶  GO"); font: 26px; fill: #1c8a2e; horizontal-stretch: 2; clicked => { root.go(); } }
-                ToolButton { text: root.paused ? @tr("▶  HERVAT") : @tr("⏸  PAUSE"); horizontal-stretch: 1; clicked => { root.pause(); } }
-                ToolButton { text: @tr("■  STOP"); horizontal-stretch: 1; clicked => { root.stop(); } }
+                ToolButton { icon: @image-url("icons/play.svg"); text: @tr("GO"); font: 26px; fill: #1c8a2e; horizontal-stretch: 2; clicked => { root.go(); } }
+                ToolButton { icon: root.paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg"); text: root.paused ? @tr("HERVAT") : @tr("PAUSE"); horizontal-stretch: 1; clicked => { root.pause(); } }
+                ToolButton { icon: @image-url("icons/stop.svg"); text: @tr("STOP"); horizontal-stretch: 1; clicked => { root.stop(); } }
                 VerticalLayout {
                     width: 120px; spacing: 8px;
-                    ToolButton { text: @tr("PANIC"); font: 14px; fill: #7f1d1d; clicked => { root.panic(); } }
-                    ToolButton { text: @tr("⏮ Reset"); font: 14px; clicked => { root.reset-show(); } }
+                    ToolButton { height: 42px; text: @tr("PANIC"); font: 14px; fill: #7f1d1d; clicked => { root.panic(); } }
+                    ToolButton { height: 42px; icon: @image-url("icons/reset.svg"); text: @tr("Reset"); font: 14px; clicked => { root.reset-show(); } }
                 }
                 Rectangle {
                     horizontal-stretch: 2;
@@ -287,11 +297,11 @@ export component MainWindow inherits Window {
                 ToolButton { text: @tr("Parallel"); width: 82px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("parallel"); } }
                 ToolButton { text: @tr("Loop"); width: 66px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("loop"); } }
                 Rectangle { horizontal-stretch: 1; }
-                ToolButton { text: @tr("⚙ Instellingen"); width: 136px; clicked => { root.open-settings(); } }
-                ToolButton { text: @tr("📁 Bestand"); width: 120px; clicked => { file-popup.show(); } }
-                ToolButton { text: "↑"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-up(); } }
-                ToolButton { text: "↓"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-down(); } }
-                ToolButton { text: "🗑"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.remove-cue(); } }
+                ToolButton { icon: @image-url("icons/gear.svg"); text: @tr("Instellingen"); width: 136px; clicked => { root.open-settings(); } }
+                ToolButton { icon: @image-url("icons/folder.svg"); text: @tr("Bestand"); width: 120px; clicked => { file-popup.show(); } }
+                ToolButton { icon: @image-url("icons/arrow-up.svg"); width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-up(); } }
+                ToolButton { icon: @image-url("icons/arrow-down.svg"); width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-down(); } }
+                ToolButton { icon: @image-url("icons/trash.svg"); width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.remove-cue(); } }
             }
 
             // Cue-lijst
@@ -425,7 +435,7 @@ export component MainWindow inherits Window {
                             color: white; font-size: 16px; font-weight: 700; overflow: elide;
                         }
                         if root.has-selection && (root.insp-kind == "osc" || root.insp-kind == "midi"): ToolButton {
-                            text: @tr("▶ Test"); width: 90px; font: 13px; clicked => { root.test-cue(); }
+                            icon: @image-url("icons/play.svg"); text: @tr("Test"); width: 96px; font: 13px; clicked => { root.test-cue(); }
                         }
                     }
                     HorizontalLayout {
@@ -568,7 +578,7 @@ export component MainWindow inherits Window {
                             LineEdit { width: 180px; text: d.name; edited(t) => { root.dest-edited(i, 0, t); } }
                             LineEdit { horizontal-stretch: 1; text: d.host; edited(t) => { root.dest-edited(i, 1, t); } }
                             LineEdit { width: 90px; text: d.port; input-type: number; edited(t) => { root.dest-edited(i, 2, t); } }
-                            ToolButton { width: 40px; text: "✕"; font: 14px; clicked => { root.dest-remove(i); } }
+                            ToolButton { width: 40px; icon: @image-url("icons/close.svg"); font: 14px; clicked => { root.dest-remove(i); } }
                         }
                         HorizontalLayout { alignment: start; ToolButton { text: @tr("+ Bestemming"); width: 150px; height: 32px; font: 13px; clicked => { root.dest-add(); } } }
 
@@ -582,7 +592,7 @@ export component MainWindow inherits Window {
                             LineEdit { width: 180px; text: c.name; edited(t) => { root.cmd-edited(i, 0, t); } }
                             LineEdit { horizontal-stretch: 1; text: c.address; placeholder-text: "/eos/cue/1/fire"; edited(t) => { root.cmd-edited(i, 1, t); } }
                             LineEdit { width: 200px; text: c.args; placeholder-text: "f:0.7"; edited(t) => { root.cmd-edited(i, 2, t); } }
-                            ToolButton { width: 40px; text: "✕"; font: 14px; clicked => { root.cmd-remove(i); } }
+                            ToolButton { width: 40px; icon: @image-url("icons/close.svg"); font: 14px; clicked => { root.cmd-remove(i); } }
                         }
                         HorizontalLayout { alignment: start; ToolButton { text: @tr("+ Commando"); width: 150px; height: 32px; font: 13px; clicked => { root.cmd-add(); } } }
 

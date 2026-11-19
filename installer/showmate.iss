@@ -27,6 +27,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequiredOverridesAllowed=dialog
 UninstallDisplayName=ShowMate
+UninstallDisplayIcon={app}\showmate.exe
+SetupIconFile=..\assets\showmate.ico
 
 [Languages]
 Name: "nl"; MessagesFile: "compiler:Languages\Dutch.isl"

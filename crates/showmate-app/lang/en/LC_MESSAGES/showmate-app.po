@@ -28,6 +28,14 @@ msgid "+ Video"
 msgstr "+ Video"
 
 msgctxt "MainWindow"
+msgid "Alles op standaard"
+msgstr "Reset all to default"
+
+msgctxt "MainWindow"
+msgid "Annuleer"
+msgstr "Cancel"
+
+msgctxt "MainWindow"
 msgid "Argumenten"
 msgstr "Arguments"
 
@@ -44,12 +52,24 @@ msgid "Audio"
 msgstr "Audio"
 
 msgctxt "MainWindow"
+msgid "Bestand"
+msgstr "File"
+
+msgctxt "MainWindow"
+msgid "Bestanden kopiëren naar de media-map van de show"
+msgstr "Copy files to the show's media folder"
+
+msgctxt "MainWindow"
 msgid "Bestemming"
 msgstr "Destination"
 
 msgctxt "MainWindow"
 msgid "Bestemming — onbekend"
 msgstr "Destination — unknown"
+
+msgctxt "MainWindow"
+msgid "Bladeren…"
+msgstr "Browse…"
 
 msgctxt "MainWindow"
 msgid "Commando (uit instellingen)"
@@ -78,6 +98,10 @@ msgstr "Delay (s or mm:ss)"
 msgctxt "MainWindow"
 msgid "Delay — ongeldig"
 msgstr "Delay — invalid"
+
+msgctxt "MainWindow"
+msgid "Druk een toets…"
+msgstr "Press a key…"
 
 msgctxt "MainWindow"
 msgid "Duur"
@@ -112,6 +136,10 @@ msgid "Fade out — ongeldig"
 msgstr "Fade out — invalid"
 
 msgctxt "MainWindow"
+msgid "GO"
+msgstr "GO"
+
+msgctxt "MainWindow"
 msgid "Geluid van video dempen"
 msgstr "Mute video audio"
 
@@ -122,6 +150,10 @@ msgstr "Group"
 msgctxt "MainWindow"
 msgid "Groep (na elkaar)"
 msgstr "Group (one after another)"
+
+msgctxt "MainWindow"
+msgid "HERVAT"
+msgstr "RESUME"
 
 msgctxt "MainWindow"
 msgid "Herhaal (loop)"
@@ -164,8 +196,28 @@ msgid "Media / doel"
 msgstr "Media / target"
 
 msgctxt "MainWindow"
+msgid "Monitor 1"
+msgstr "Monitor 1"
+
+msgctxt "MainWindow"
+msgid "Monitor 2"
+msgstr "Monitor 2"
+
+msgctxt "MainWindow"
+msgid "Monitor 3"
+msgstr "Monitor 3"
+
+msgctxt "MainWindow"
+msgid "Monitor 4"
+msgstr "Monitor 4"
+
+msgctxt "MainWindow"
 msgid "Naam"
 msgstr "Name"
+
+msgctxt "MainWindow"
+msgid "Nieuwe show…"
+msgstr "New show…"
 
 msgctxt "MainWindow"
 msgid "Noot (0–127)"
@@ -188,6 +240,14 @@ msgid "OSC-commando's (adres en argumenten, te kiezen per cue)"
 msgstr "OSC commands (address and arguments, selectable per cue)"
 
 msgctxt "MainWindow"
+msgid "Opslaan"
+msgstr "Save"
+
+msgctxt "MainWindow"
+msgid "Opslaan als…"
+msgstr "Save as…"
+
+msgctxt "MainWindow"
 msgid "Opslaan en sluiten"
 msgstr "Save and close"
 
@@ -198,6 +258,14 @@ msgstr "Output"
 msgctxt "MainWindow"
 msgid "PANIC"
 msgstr "PANIC"
+
+msgctxt "MainWindow"
+msgid "PAUSE"
+msgstr "PAUSE"
+
+msgctxt "MainWindow"
+msgid "Pad naar mpv (leeg = automatisch zoeken)"
+msgstr "Path to mpv (empty = find automatically)"
 
 msgctxt "MainWindow"
 msgid "Parallel"
@@ -216,16 +284,40 @@ msgid "Programma (0–127)"
 msgstr "Program (0–127)"
 
 msgctxt "MainWindow"
+msgid "Recent"
+msgstr "Recent"
+
+msgctxt "MainWindow"
+msgid "Reset"
+msgstr "Reset"
+
+msgctxt "MainWindow"
+msgid "STOP"
+msgstr "STOP"
+
+msgctxt "MainWindow"
 msgid "Selecteer een cue om te bewerken"
 msgstr "Select a cue to edit"
+
+msgctxt "MainWindow"
+msgid "Show openen…"
+msgstr "Open show…"
 
 msgctxt "MainWindow"
 msgid "Snelheid (0–127)"
 msgstr "Velocity (0–127)"
 
 msgctxt "MainWindow"
+msgid "Sneltoetsen"
+msgstr "Keyboard shortcuts"
+
+msgctxt "MainWindow"
 msgid "Soort"
 msgstr "Type"
+
+msgctxt "MainWindow"
+msgid "Standaard"
+msgstr "Default"
 
 msgctxt "MainWindow"
 msgid "Start"
@@ -236,8 +328,8 @@ msgid "Status"
 msgstr "Status"
 
 msgctxt "MainWindow"
-msgid "Taal"
-msgstr "Language"
+msgid "Test"
+msgstr "Test"
 
 msgctxt "MainWindow"
 msgid "Tijdcode (show)"
@@ -246,6 +338,10 @@ msgstr "Timecode (show)"
 msgctxt "MainWindow"
 msgid "Type"
 msgstr "Type"
+
+msgctxt "MainWindow"
+msgid "Uitvoer op volledig scherm (anders in een gewoon venster)"
+msgstr "Output fullscreen (otherwise in a normal window)"
 
 msgctxt "MainWindow"
 msgid "Vernieuwen"
@@ -258,6 +354,10 @@ msgstr "Sends: "
 msgctxt "MainWindow"
 msgid "Video"
 msgstr "Video"
+
+msgctxt "MainWindow"
+msgid "Video (schermen)"
+msgstr "Video (screens)"
 
 msgctxt "MainWindow"
 msgid "Volgende cue"
@@ -276,58 +376,6 @@ msgid "Waarde (0–127)"
 msgstr "Value (0–127)"
 
 msgctxt "MainWindow"
-msgid "geen video actief"
-msgstr "no video active"
-
-msgctxt "MainWindow"
-msgid "⏮ Reset"
-msgstr "⏮ Reset"
-
-msgctxt "MainWindow"
-msgid "⏸  PAUSE"
-msgstr "⏸  PAUSE"
-
-msgctxt "MainWindow"
-msgid "■  STOP"
-msgstr "■  STOP"
-
-msgctxt "MainWindow"
-msgid "▶  GO"
-msgstr "▶  GO"
-
-msgctxt "MainWindow"
-msgid "▶  HERVAT"
-msgstr "▶  RESUME"
-
-msgctxt "MainWindow"
-msgid "▶ Test"
-msgstr "▶ Test"
-
-msgctxt "MainWindow"
-msgid "⚙ Instellingen"
-msgstr "⚙ Settings"
-
-msgctxt "MainWindow"
-msgid "💾 Opslaan"
-msgstr "💾 Save"
-
-msgctxt "MainWindow"
-msgid "Sneltoetsen"
-msgstr "Keyboard shortcuts"
-
-msgctxt "MainWindow"
-msgid "Druk een toets…"
-msgstr "Press a key…"
-
-msgctxt "MainWindow"
-msgid "— geen —"
-msgstr "— none —"
-
-msgctxt "MainWindow"
-msgid "Annuleer"
-msgstr "Cancel"
-
-msgctxt "MainWindow"
 msgid "Wijzig"
 msgstr "Change"
 
@@ -336,69 +384,9 @@ msgid "Wis"
 msgstr "Clear"
 
 msgctxt "MainWindow"
-msgid "Standaard"
-msgstr "Default"
+msgid "geen video actief"
+msgstr "no video active"
 
 msgctxt "MainWindow"
-msgid "Alles op standaard"
-msgstr "Reset all to default"
-
-msgctxt "MainWindow"
-msgid "📁 Bestand"
-msgstr "📁 File"
-
-msgctxt "MainWindow"
-msgid "Nieuwe show…"
-msgstr "New show…"
-
-msgctxt "MainWindow"
-msgid "Show openen…"
-msgstr "Open show…"
-
-msgctxt "MainWindow"
-msgid "Opslaan"
-msgstr "Save"
-
-msgctxt "MainWindow"
-msgid "Opslaan als…"
-msgstr "Save as…"
-
-msgctxt "MainWindow"
-msgid "Recent"
-msgstr "Recent"
-
-msgctxt "MainWindow"
-msgid "Bladeren…"
-msgstr "Browse…"
-
-msgctxt "MainWindow"
-msgid "Bestanden kopiëren naar de media-map van de show"
-msgstr "Copy files to the show's media folder"
-
-msgctxt "MainWindow"
-msgid "Video (schermen)"
-msgstr "Video (screens)"
-
-msgctxt "MainWindow"
-msgid "Uitvoer op volledig scherm (anders in een gewoon venster)"
-msgstr "Output fullscreen (otherwise in a normal window)"
-
-msgctxt "MainWindow"
-msgid "Monitor 1"
-msgstr "Monitor 1"
-
-msgctxt "MainWindow"
-msgid "Monitor 2"
-msgstr "Monitor 2"
-
-msgctxt "MainWindow"
-msgid "Monitor 3"
-msgstr "Monitor 3"
-
-msgctxt "MainWindow"
-msgid "Monitor 4"
-msgstr "Monitor 4"
-
-msgctxt "MainWindow"
-msgid "Pad naar mpv (leeg = automatisch zoeken)"
-msgstr "Path to mpv (empty = find automatically)"
+msgid "— geen —"
+msgstr "— none —"

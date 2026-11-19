@@ -110,8 +110,8 @@ impl AppState {
                 let dest = self.effective_destination(cue).cloned().ok_or_else(|| {
                     if cue.output.trim().is_empty() {
                         t!(
-                            "geen OSC-bestemming ingesteld (⚙ Instellingen)",
-                            "no OSC destination configured (⚙ Settings)"
+                            "geen OSC-bestemming ingesteld (Instellingen)",
+                            "no OSC destination configured (Settings)"
                         )
                     } else {
                         t!(
@@ -128,8 +128,8 @@ impl AppState {
             CueKind::Midi => match self.midi.as_mut() {
                 Some(m) => m.send(&cue.midi),
                 None => Err(t!(
-                    "geen MIDI-uitgang gekozen (⚙ Instellingen)",
-                    "no MIDI output selected (⚙ Settings)"
+                    "geen MIDI-uitgang gekozen (Instellingen)",
+                    "no MIDI output selected (Settings)"
                 )),
             },
             _ => Ok(()),

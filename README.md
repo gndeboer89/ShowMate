@@ -1,5 +1,7 @@
 # ShowMate
 
+<img src="assets/logo.svg" alt="ShowMate-logo" width="96" align="right">
+
 Cue-gebaseerde show-control software voor Windows, geschreven in Rust met een Slint-GUI.
 
 ## Structuur
@@ -69,7 +71,7 @@ decoder-crash legt de show niet plat). Zet `mpv.exe` (van mpv.io / shinchiro-bui
   het venster verschijnt bij de eerste videocue en blijft zwart staan na afloop.
   STOP stopt de beelden en sluit de uitvoervensters.
 - Preview rechtsonder: ~2,5×/s een screenshot van het actieve scherm.
-- Standaard draait de uitvoer in een gewoon venster. **Schermen instellen: ⚙ Instellingen → Video (schermen)**: vink
+- Standaard draait de uitvoer in een gewoon venster. **Schermen instellen: Instellingen → Video (schermen)**: vink
   *volledig scherm* aan en kies per display (Display 1…4) op welke monitor het komt; daar staat ook het pad naar mpv.
   Wijzigingen gelden na *Opslaan en sluiten* (de spelers worden dan opnieuw gestart). Handmatig kan ook in `settings.json`:
 
@@ -80,7 +82,7 @@ decoder-crash legt de show niet plat). Zet `mpv.exe` (van mpv.io / shinchiro-bui
 `screens[n]` is de monitor-index (0 = eerste monitor) voor Display n+1.
 
 **Foutmelding "geen verbinding met mpv"**: mpv is gestart maar meteen weer gestopt of kon zijn besturingskanaal niet openen.
-De melding noemt nu de reden die mpv zelf geeft (bv. een optie die jouw mpv-versie niet kent). Controleer in ⚙ Instellingen
+De melding noemt nu de reden die mpv zelf geeft (bv. een optie die jouw mpv-versie niet kent). Controleer in Instellingen
 het pad naar mpv en probeer `mpv.exe --version`. `SHOWMATE_FULLSCREEN=1` en
 `SHOWMATE_MPV_ARGS` overschrijven dit.
 
@@ -93,7 +95,7 @@ geluid alleen van het eerste scherm.
 
 ## OSC en MIDI
 
-Alles is aan te passen via **⚙ Instellingen** (opgeslagen in `settings.json` naast de showfile):
+Alles is aan te passen via **Instellingen** (opgeslagen in `settings.json` naast de showfile):
 
 - **OSC-bestemmingen**: naam, IP-adres/hostnaam en poort (bv. `Lighting` → `192.168.1.50:8000`).
   Een OSC-cue kiest een bestemming op naam; hernoem je er een, dan volgen de cues vanzelf.
@@ -119,7 +121,7 @@ van een groep zet de groep zelf klaar.
 
 ## Shows en bestanden
 
-- **📁 Bestand** (of `Ctrl+N` / `Ctrl+O` / `Ctrl+Shift+S`): nieuwe show, openen, opslaan, opslaan als en een lijst met
+- **Bestand** (of `Ctrl+N` / `Ctrl+O` / `Ctrl+Shift+S`): nieuwe show, openen, opslaan, opslaan als en een lijst met
   recent geopende shows. Bij het starten opent ShowMate de laatst gebruikte show. Een show is één `.showmate`-bestand;
   hij heeft zijn eigen map met een submap `media`.
 - **Niet-opgeslagen wijzigingen**: bij nieuw/openen vraagt ShowMate of je eerst wilt opslaan.
@@ -128,7 +130,7 @@ van een groep zet de groep zelf klaar.
   - selecteer een audio- of videocue en klik **Bladeren…** naast *Media / doel*, of
   - **sleep bestanden** (mp3, wav, flac, ogg, m4a, aac, mp4, mov, mkv, avi, webm, …) op het venster: ze worden nieuwe
     cues onder de geselecteerde cue. Sleep je een `.showmate`-bestand, dan wordt die show geopend.
-- **Kopiëren naar de media-map** (standaard aan, uit te zetten in ⚙ Instellingen): het bestand wordt op de achtergrond
+- **Kopiëren naar de media-map** (standaard aan, uit te zetten in Instellingen): het bestand wordt op de achtergrond
   naar `<showmap>\media` gekopieerd en de cue bewaart alleen de bestandsnaam. Zo kun je de showmap meenemen naar een
   andere computer. Bij een naamconflict met een ander bestand wordt `naam (2).ext` gebruikt; staat hetzelfde bestand er al,
   dan wordt dat hergebruikt. Uitgeschakeld bewaart de cue het volledige pad.
@@ -155,7 +157,7 @@ kinderen telt niet. Een `Auto`-cue direct na een groep volgt de start van de gro
 
 ## Sneltoetsen en veiligheid
 
-Alle sneltoetsen zijn aan te passen in **⚙ Instellingen → Sneltoetsen**: klik *Wijzig* en druk de nieuwe
+Alle sneltoetsen zijn aan te passen in **Instellingen → Sneltoetsen**: klik *Wijzig* en druk de nieuwe
 combinatie (bv. `Ctrl+Shift+G`, `F5`, `Enter`). Een toets die al in gebruik is wordt geweigerd, met de naam van
 de actie die hem heeft. *Wis* maakt een actie toetsloos, *Standaard* zet hem terug. Opgeslagen in
 `settings.json` (`"shortcuts": {"go": "Enter"}`; alleen afwijkingen). Standaardtoetsen:
@@ -184,7 +186,7 @@ de actie die hem heeft. *Wis* maakt een actie toetsloos, *Standaard* zet hem ter
 
 ## Taal
 
-Nederlands (standaard) en Engels: kies in ⚙ Instellingen. De interface gebruikt Slint's `@tr`;
+Nederlands (standaard) en Engels: kies in Instellingen. De interface gebruikt Slint's `@tr`;
 vertalingen staan in `crates/showmate-app/lang/<taal>/LC_MESSAGES/showmate-app.po` (`msgctxt "MainWindow"`).
 Foutmeldingen uit de audio-, video- en OSC-lagen zijn nog Nederlands.
 
@@ -211,3 +213,10 @@ Dit programma wordt verspreid in de hoop dat het nuttig is, maar zonder enige ga
 
 Licenties van gebruikte onderdelen (Slint onder GPL-3.0, mpv/FFmpeg in de installer, Rust-crates): zie
 [`THIRD-PARTY.md`](THIRD-PARTY.md). Lijst opnieuw genereren: `python3 tools/gen-third-party.py`.
+
+## Logo en pictogrammen
+
+Het logo staat in [`assets/logo.svg`](assets/logo.svg) (bron). `tools/make-icons.sh` maakt daaruit `assets/showmate.ico`
+(Windows: 16–256 px) en `assets/icon-256.png` / `icon-512.png`. Het `.ico` wordt in `showmate.exe` ingesloten (build.rs,
+via `winresource`) en gebruikt door de installer; het PNG is het venster-/taakbalkpictogram. De knoppen in de interface
+gebruiken SVG-pictogrammen uit `crates/showmate-app/ui/icons/` (geen emoji, die ontbraken in de lettertypen van Windows).
