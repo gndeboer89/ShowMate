@@ -16,4 +16,12 @@ $archive = Join-Path $env:TEMP $asset.name
 Invoke-WebRequest $asset.browser_download_url -OutFile $archive
 & 7z x $archive "-o$dest" -y | Out-Null
 if (-not (Test-Path (Join-Path $dest "mpv.exe"))) { throw "mpv.exe ontbreekt na uitpakken" }
+# GPL: leg vast welke build er wordt meegeleverd en waar de bron te vinden is (komt in de installer).
+@(
+    "mpv-build in deze installer: $($asset.name)",
+    "Release: $($release.html_url)",
+    "Build-scripts en bronverwijzingen: https://github.com/shinchiro/mpv-winbuild-cmake",
+    "mpv broncode: https://github.com/mpv-player/mpv",
+    "Licentie: GPL (zie THIRD-PARTY.md). Volledige bron op aanvraag: https://github.com/gndeboer89/ShowMate/issues"
+) | Set-Content -Path (Join-Path $dest "SOURCE.txt") -Encoding UTF8
 Write-Host "mpv geïnstalleerd in $dest ($($asset.name))"

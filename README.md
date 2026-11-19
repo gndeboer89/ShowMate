@@ -163,3 +163,16 @@ iscc /DAppVersion=0.1.0 installer\showmate.iss  # → dist\ShowMate-Setup-0.1.0.
 
 De CI bouwt dit ook (job `installer`). Het mpv-downloadscript en de Inno Setup-stap zijn nog niet
 op een echte Windows-runner uitgeprobeerd.
+
+## Licentie
+
+ShowMate is vrije software: je mag het gebruiken, bestuderen, aanpassen en delen onder de voorwaarden van de
+**GNU General Public License, versie 3 of (naar keuze) een latere versie** (`GPL-3.0-or-later`). De volledige
+tekst staat in [`LICENSE`](LICENSE).
+
+Copyright (C) 2026 ShowMate contributors.
+
+Dit programma wordt verspreid in de hoop dat het nuttig is, maar zonder enige garantie; zie de GPL voor details.
+
+Licenties van gebruikte onderdelen (Slint onder GPL-3.0, mpv/FFmpeg in de installer, Rust-crates): zie
+[`THIRD-PARTY.md`](THIRD-PARTY.md). Lijst opnieuw genereren: `python3 tools/gen-third-party.py`.

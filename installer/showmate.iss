@@ -15,6 +15,7 @@ AppId={{6D3B2B5E-7A57-4F7B-9C6C-5E3C0B2D8A11}
 AppName=ShowMate
 AppVersion={#AppVersion}
 AppPublisher=ShowMate
+AppCopyright=Copyright (C) 2026 ShowMate contributors. GPL-3.0-or-later.
 DefaultDirName={autopf}\ShowMate
 DefaultGroupName=ShowMate
 DisableProgramGroupPage=yes
@@ -37,6 +38,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "..\target\release\showmate.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD-PARTY.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\mpv\*"; DestDir: "{app}\mpv"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 
 [Icons]
