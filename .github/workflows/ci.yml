@@ -11,7 +11,7 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -20,7 +20,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo build --release -p showmate-app
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: showmate-windows
           path: target/release/showmate.exe
@@ -35,7 +35,7 @@ jobs:
       group: release
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # alle tags nodig om het volgende versienummer te bepalen
       - uses: dtolnay/rust-toolchain@stable
@@ -84,7 +84,7 @@ jobs:
       - name: Installer bouwen (Inno Setup)
         shell: pwsh
         run: iscc /DAppVersion=${{ steps.ver.outputs.version }} installer\showmate.iss
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: showmate-installer
           path: dist/ShowMate-Setup-*.exe
