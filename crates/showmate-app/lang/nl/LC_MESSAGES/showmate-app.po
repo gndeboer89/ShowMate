@@ -374,3 +374,31 @@ msgstr "Bladeren…"
 msgctxt "MainWindow"
 msgid "Bestanden kopiëren naar de media-map van de show"
 msgstr "Bestanden kopiëren naar de media-map van de show"
+
+msgctxt "MainWindow"
+msgid "Video (schermen)"
+msgstr "Video (schermen)"
+
+msgctxt "MainWindow"
+msgid "Uitvoer op volledig scherm (anders in een gewoon venster)"
+msgstr "Uitvoer op volledig scherm (anders in een gewoon venster)"
+
+msgctxt "MainWindow"
+msgid "Monitor 1"
+msgstr "Monitor 1"
+
+msgctxt "MainWindow"
+msgid "Monitor 2"
+msgstr "Monitor 2"
+
+msgctxt "MainWindow"
+msgid "Monitor 3"
+msgstr "Monitor 3"
+
+msgctxt "MainWindow"
+msgid "Monitor 4"
+msgstr "Monitor 4"
+
+msgctxt "MainWindow"
+msgid "Pad naar mpv (leeg = automatisch zoeken)"
+msgstr "Pad naar mpv (leeg = automatisch zoeken)"

@@ -32,6 +32,7 @@ export struct CueRow {
     done: bool,
     indent: bool,
     group: bool,
+    playhead: bool,
 }
 
 component ToolButton inherits Rectangle {
@@ -148,6 +149,10 @@ export component MainWindow inherits Window {
     in property <[string]> cmd-names;
     in property <[string]> recent;
     in-out property <bool> copy-media: true;
+    in-out property <bool> video-fullscreen;
+    in property <[int]> screen-indexes: [0, 1, 2, 3];
+    in-out property <string> mpv-path;
+    in property <string> video-status;
 
     // Instellingenvenster
     in property <bool> settings-open;
@@ -188,6 +193,10 @@ export component MainWindow inherits Window {
     callback open-recent(int);
     callback browse-media();
     callback copy-media-toggled(bool);
+    callback video-fullscreen-toggled(bool);
+    callback video-screen-selected(int, int);
+    callback mpv-path-edited(string);
+    callback browse-mpv();
     callback key-event(string, bool, bool, bool, bool) -> bool;
     callback key-capture(int);
     callback key-clear(int);
@@ -310,6 +319,7 @@ export component MainWindow inherits Window {
                                 height: 34px;
                                 border-radius: 4px;
                                 background: root.selected == i ? #1e3a5f : (row.active ? #14532d : (touch.has-hover ? #182133 : transparent));
+                                Rectangle { x: 0px; width: 4px; height: parent.height; background: #4ade80; visible: row.playhead; border-radius: 2px; }
                                 HorizontalLayout {
                                     padding-left: 12px; padding-right: 12px; spacing: 8px;
                                     Cell { text: row.number; width: 28px; }
@@ -582,6 +592,19 @@ export component MainWindow inherits Window {
                             ToolButton { width: 110px; text: @tr("Vernieuwen"); font: 13px; clicked => { root.midi-refresh(); } }
                             Text { text: root.midi-status; color: #9aa6ba; font-size: 13px; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; }
                         }
+
+                        Text { text: @tr("Video (schermen)"); color: #c5cee0; font-size: 15px; font-weight: 700; }
+                        CheckBox { text: @tr("Uitvoer op volledig scherm (anders in een gewoon venster)"); checked <=> root.video-fullscreen; toggled => { root.video-fullscreen-toggled(self.checked); } }
+                        HorizontalLayout { spacing: 12px; height: 56px;
+                            for n in [0, 1, 2, 3]: VerticalLayout { spacing: 2px;
+                                Text { text: "Display " + (n + 1) + " →"; color: #9aa6ba; font-size: 12px; }
+                                ComboBox { model: [@tr("Monitor 1"), @tr("Monitor 2"), @tr("Monitor 3"), @tr("Monitor 4")]; current-index: root.screen-indexes[n];
+                                    selected(v) => { root.video-screen-selected(n, self.current-index); } } } }
+                        Text { text: @tr("Pad naar mpv (leeg = automatisch zoeken)"); color: #9aa6ba; font-size: 12px; }
+                        HorizontalLayout { spacing: 8px; height: 34px;
+                            LineEdit { horizontal-stretch: 1; text <=> root.mpv-path; placeholder-text: "C:\\mpv\\mpv.exe"; edited(t) => { root.mpv-path-edited(t); } }
+                            ToolButton { text: @tr("Bladeren…"); width: 104px; font: 13px; clicked => { root.browse-mpv(); } } }
+                        Text { text: root.video-status; color: #9aa6ba; font-size: 12px; wrap: word-wrap; }
 
                         Text { text: @tr("Sneltoetsen"); color: #c5cee0; font-size: 15px; font-weight: 700; }
                         for k[i] in root.keys: HorizontalLayout {

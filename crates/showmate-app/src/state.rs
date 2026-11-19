@@ -48,6 +48,8 @@ pub struct AppState {
     wave_reset: bool,
     video: VideoOutput,
     video_info: String,
+    /// Debug-weergave van de laatst toegepaste videoconfiguratie (om wijzigingen te herkennen).
+    video_cfg_key: String,
     video_durations: HashMap<CueId, Duration>,
     preview_ticks: u32,
     preview_slot: usize,
@@ -181,7 +183,9 @@ impl AppState {
             }
             Err(e) => (None, t!("geen audio: {e}", "no audio: {e}")),
         };
-        let video = VideoOutput::new(settings.video.to_config());
+        let video_cfg = settings.video.to_config();
+        let video_cfg_key = format!("{video_cfg:?}");
+        let video = VideoOutput::new(video_cfg);
         let video_info = match video.mpv() {
             Ok(p) => format!("mpv: {}", p.display()),
             Err(e) => e.to_string(),
@@ -216,6 +220,7 @@ impl AppState {
             wave_reset: false,
             video,
             video_info,
+            video_cfg_key,
             video_durations: HashMap::new(),
             preview_ticks: 0,
             preview_slot: 0,
@@ -468,6 +473,10 @@ impl AppState {
     pub fn select(&mut self, index: i32) {
         let n = self.engine.show().cues.len();
         self.selected = usize::try_from(index).ok().filter(|i| *i < n);
+        // De aangeklikte cue staat klaar: de volgende GO start deze.
+        if let Some(i) = self.selected {
+            self.engine.set_playhead(i);
+        }
         self.delay_ok = true;
         self.duration_ok = true;
         self.volume_ok = true;
@@ -753,6 +762,7 @@ impl AppState {
             .map(|c| self.io_labels(c))
             .collect();
         let show = self.engine.show();
+        let playhead = self.engine.playhead();
         let children: Vec<bool> = (0..show.cues.len()).map(|i| show.is_child(i)).collect();
         let rows: Vec<CueRow> = show
             .cues
@@ -765,6 +775,7 @@ impl AppState {
                 kind: type_label(cue).into(),
                 indent: children.get(i).copied().unwrap_or(false),
                 group: cue.kind == CueKind::Group,
+                playhead: playhead == Some(i),
                 media: io_labels
                     .get(i)
                     .and_then(|l| l.as_ref())
@@ -852,22 +863,29 @@ impl AppState {
                 .any(|s| matches!(s, CueState::Scheduled { .. })),
         );
 
-        match self.engine.next_cue() {
-            Some(next) => {
-                ui.set_next_cue(
-                    format!("{} • {}", next.index + 1, show.cues[next.index].name).into(),
-                );
-                ui.set_next_eta(
-                    match next.starts_in {
-                        Some(d) => t!(
-                            "(over {})",
-                            "(in {})",
-                            format_timecode(d, FPS).split('.').next().unwrap_or("")
-                        ),
-                        None => t!("(wacht op GO)", "(waiting for GO)"),
+        // "Volgende cue" = de cue die de volgende GO start (de playhead).
+        match playhead {
+            Some(i) => {
+                ui.set_next_cue(format!("{} • {}", i + 1, show.cues[i].name).into());
+                let eta = match self.engine.states()[i] {
+                    CueState::Scheduled { start_at } => t!(
+                        "(over {})",
+                        "(in {})",
+                        format_timecode(start_at.saturating_sub(self.engine.show_time()), FPS)
+                            .split('.')
+                            .next()
+                            .unwrap_or("")
+                    ),
+                    CueState::Active { .. } => t!(
+                        "(loopt; GO start hem niet opnieuw)",
+                        "(running; GO will not restart it)"
+                    ),
+                    CueState::Finished | CueState::Stopped => {
+                        t!("(gespeeld; GO start opnieuw)", "(played; GO restarts it)")
                     }
-                    .into(),
-                );
+                    CueState::Waiting => t!("(wacht op GO)", "(waiting for GO)"),
+                };
+                ui.set_next_eta(eta.into());
             }
             None => {
                 ui.set_next_cue("—".into());

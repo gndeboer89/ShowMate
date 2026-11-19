@@ -220,6 +220,59 @@ impl AppState {
         self.fill_inspector = true;
     }
 
+    // ---- videoschermen ------------------------------------------------------------
+
+    pub fn video_fullscreen_toggled(&mut self, on: bool) {
+        self.settings.video.fullscreen = on;
+    }
+
+    /// Koppelt `Display n+1` aan monitor `monitor` (0 = eerste monitor).
+    pub fn video_screen_selected(&mut self, display: i32, monitor: i32) {
+        let (Ok(d), Ok(m)) = (usize::try_from(display), usize::try_from(monitor)) else {
+            return;
+        };
+        let screens = &mut self.settings.video.screens;
+        if screens.len() <= d.max(3) {
+            let have = screens.len();
+            screens.extend(have..=d.max(3));
+        }
+        screens[d] = m;
+    }
+
+    pub fn mpv_path_edited(&mut self, text: &str) {
+        let t = text.trim();
+        self.settings.video.mpv_path = (!t.is_empty()).then(|| t.into());
+    }
+
+    pub fn browse_mpv(&mut self) {
+        let filters: [crate::dialogs::Filter; 1] = [("mpv", &["exe"])];
+        if let Some(p) =
+            crate::dialogs::pick_file(crate::i18n::tr("mpv kiezen", "Choose mpv"), &filters, None)
+        {
+            self.settings.video.mpv_path = Some(p);
+            self.fill_settings = true;
+        }
+    }
+
+    /// Start de videospelers opnieuw als de videoinstellingen zijn gewijzigd.
+    fn apply_video_settings(&mut self) {
+        let cfg = self.settings.video.to_config();
+        let key = format!("{cfg:?}");
+        if key == self.video_cfg_key {
+            return;
+        }
+        self.video_cfg_key = key;
+        // De oude VideoOutput sluit bij het vervangen zijn mpv-processen.
+        self.video = showmate_video::VideoOutput::new(cfg);
+        self.video_info = match self.video.mpv() {
+            Ok(p) => format!("mpv: {}", p.display()),
+            Err(e) => e.to_string(),
+        };
+        if let Some(e) = self.warm_video() {
+            self.message = e;
+        }
+    }
+
     pub fn open_settings(&mut self) {
         self.settings_open = true;
         self.settings_note.clear();
@@ -232,6 +285,7 @@ impl AppState {
         self.capturing = None;
         self.osc.forget();
         self.connect_midi();
+        self.apply_video_settings();
         self.settings_note.clear();
         self.message = match settings::save(&self.app_dir, &self.settings) {
             Ok(()) if self.midi_status.is_empty() => {
@@ -419,6 +473,27 @@ impl AppState {
         let s = &self.settings;
         ui.set_settings_open(self.settings_open);
         ui.set_copy_media(self.settings.copy_media);
+        ui.set_video_fullscreen(self.settings.video.fullscreen);
+        let screens: Vec<i32> = (0..4)
+            .map(|n| self.settings.video.screens.get(n).copied().unwrap_or(n) as i32)
+            .collect();
+        ui.set_screen_indexes(ModelRc::new(VecModel::from(screens)));
+        ui.set_mpv_path(
+            self.settings
+                .video
+                .mpv_path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default()
+                .into(),
+        );
+        ui.set_video_status(
+            match self.video.mpv() {
+                Ok(p) => format!("mpv: {}", p.display()),
+                Err(e) => e.to_string(),
+            }
+            .into(),
+        );
         ui.set_recent(strings(self.recent_labels()));
         ui.set_keys(ModelRc::new(VecModel::from(self.key_rows())));
         ui.set_language_index(i32::from(self.settings.language == "en"));

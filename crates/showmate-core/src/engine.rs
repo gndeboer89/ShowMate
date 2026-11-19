@@ -8,6 +8,9 @@
 //!   de vorige. De eerstvolgende `Go`-cue wacht op de volgende GO.
 //! - Een cue eindigt na `duration`. Zonder duur eindigen Osc/Midi-cues direct;
 //!   Audio/Video eindigen na de gemelde mediaduur, of lopen anders tot STOP. `looping` cues eindigen nooit vanzelf.
+//! - De **playhead** is de cue die de volgende GO start. Standaard de eerste wachtende cue; met
+//!   [`Engine::set_playhead`] kies je zelf een cue (ook een al gespeelde: die start dan opnieuw).
+//!   Na een GO schuift de playhead naar de eerstvolgende cue na het afgevuurde blok.
 //! - **Groepen** (`CueKind::Group`) bevatten de `span` cues direct na de header.
 //!   `Parallel` start alle kinderen tegelijk (elk `delay` na de groepsstart), `Sequence`
 //!   start ze na elkaar (elk `delay` nadat het vorige is afgelopen) en `Loop` herhaalt dat
@@ -82,8 +85,19 @@ pub struct Engine<C: Clock> {
     media_len: HashMap<CueId, Duration>,
     /// Lopende groepen.
     groups: HashMap<CueId, GroupRun>,
+    playhead: Playhead,
     /// Einde van afgelopen cues (showtijd), nodig om de volgende in een reeks te plannen.
     ended_at: HashMap<CueId, Duration>,
+}
+
+/// Waar de volgende GO naartoe gaat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Playhead {
+    /// Niet gekozen: de eerste wachtende cue.
+    Unset,
+    At(CueId),
+    /// Voorbij de laatste cue: GO doet niets tot er een cue wordt gekozen.
+    End,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -107,6 +121,7 @@ impl<C: Clock> Engine<C> {
             media_len: HashMap::new(),
             groups: HashMap::new(),
             ended_at: HashMap::new(),
+            playhead: Playhead::Unset,
         }
     }
 
@@ -123,8 +138,65 @@ impl<C: Clock> Engine<C> {
 
     // ---- bediening ---------------------------------------------------
 
-    /// Start de volgende wachtende cue (plus bijbehorende auto-follow keten).
-    /// Genegeerd tijdens pauze.
+    /// Zet de playhead op cue `index`: de volgende GO start die cue. Een kind van een groep
+    /// geeft de groep zelf. Geeft de index van de playhead terug.
+    pub fn set_playhead(&mut self, index: usize) -> Option<usize> {
+        let index = self.show.parent_of(index).unwrap_or(index);
+        let cue = self.show.cues.get(index)?;
+        self.playhead = Playhead::At(cue.id);
+        Some(index)
+    }
+
+    /// De cue die de volgende GO start: de ingestelde playhead, anders de eerste wachtende cue.
+    pub fn playhead(&self) -> Option<usize> {
+        let first_waiting = || {
+            (0..self.states.len())
+                .find(|&i| self.states[i] == CueState::Waiting && !self.show.is_child(i))
+        };
+        match self.playhead {
+            Playhead::End => None,
+            Playhead::Unset => first_waiting(),
+            Playhead::At(id) => self
+                .show
+                .cues
+                .iter()
+                .position(|c| c.id == id)
+                .filter(|&i| !self.show.is_child(i))
+                .or_else(first_waiting),
+        }
+    }
+
+    /// Zet een afgelopen/gestopte cue (en de kinderen van een groep) terug naar wachtend.
+    fn arm(&mut self, index: usize) {
+        let span = self.show.cues[index].span;
+        for i in index..=index + span {
+            if matches!(self.states[i], CueState::Finished | CueState::Stopped) {
+                self.states[i] = CueState::Waiting;
+            }
+            let id = self.show.cues[i].id;
+            self.ended_at.remove(&id);
+        }
+        // Kinderen van een groep beginnen altijd opnieuw.
+        if span > 0 {
+            for state in &mut self.states[index + 1..=index + span] {
+                if !matches!(state, CueState::Active { .. } | CueState::Scheduled { .. }) {
+                    *state = CueState::Waiting;
+                }
+            }
+            self.groups.remove(&self.show.cues[index].id);
+        }
+    }
+
+    fn is_idle(state: CueState) -> bool {
+        matches!(
+            state,
+            CueState::Waiting | CueState::Finished | CueState::Stopped
+        )
+    }
+
+    /// Start de cue op de playhead (plus de bijbehorende auto-follow keten) en schuift de
+    /// playhead door. Genegeerd tijdens pauze. Is de cue al actief of gepland, dan start hij
+    /// niet nog eens; de playhead schuift dan alleen door.
     pub fn go(&mut self) -> Vec<Event> {
         let mut events = self.tick();
         if self.paused {
@@ -132,20 +204,27 @@ impl<C: Clock> Engine<C> {
         }
         self.started = true;
         let n = self.states.len();
-        let playhead =
-            (0..n).find(|&i| self.states[i] == CueState::Waiting && !self.show.is_child(i));
-        if let Some(first) = playhead {
-            let mut start_at = self.show_time + self.show.cues[first].delay;
-            self.states[first] = CueState::Scheduled { start_at };
-            let mut i = first + self.show.block_len(first);
-            while i < n
-                && self.states[i] == CueState::Waiting
-                && self.show.cues[i].start == StartMode::Auto
-            {
-                start_at += self.show.cues[i].delay;
-                self.states[i] = CueState::Scheduled { start_at };
-                i += self.show.block_len(i);
+        if let Some(first) = self.playhead() {
+            let mut next = first + self.show.block_len(first);
+            if Self::is_idle(self.states[first]) {
+                self.arm(first);
+                let mut start_at = self.show_time + self.show.cues[first].delay;
+                self.states[first] = CueState::Scheduled { start_at };
+                while next < n
+                    && Self::is_idle(self.states[next])
+                    && self.show.cues[next].start == StartMode::Auto
+                {
+                    self.arm(next);
+                    start_at += self.show.cues[next].delay;
+                    self.states[next] = CueState::Scheduled { start_at };
+                    next += self.show.block_len(next);
+                }
             }
+            self.playhead = self
+                .show
+                .cues
+                .get(next)
+                .map_or(Playhead::End, |c| Playhead::At(c.id));
         }
         events.extend(self.tick()); // cues zonder delay starten meteen
         events
@@ -181,15 +260,25 @@ impl<C: Clock> Engine<C> {
     /// De showtijd blijft doorlopen; eerder gespeelde cues blijven gespeeld.
     pub fn stop(&mut self) -> Vec<Event> {
         let mut events = self.tick();
-        for (i, state) in self.states.iter_mut().enumerate() {
-            match *state {
+        let mut cancelled: Option<usize> = None;
+        for i in 0..self.states.len() {
+            match self.states[i] {
                 CueState::Active { .. } => {
-                    *state = CueState::Stopped;
+                    self.states[i] = CueState::Stopped;
                     events.push(Event::CueStopped(self.show.cues[i].id));
                 }
-                CueState::Scheduled { .. } => *state = CueState::Waiting,
+                CueState::Scheduled { .. } => {
+                    self.states[i] = CueState::Waiting;
+                    if cancelled.is_none() && !self.show.is_child(i) {
+                        cancelled = Some(i);
+                    }
+                }
                 _ => {}
             }
+        }
+        // Na STOP staat de playhead weer op de eerste cue die nog niet had mogen starten.
+        if let Some(i) = cancelled {
+            self.playhead = Playhead::At(self.show.cues[i].id);
         }
         self.groups.clear();
         if self.paused {
@@ -225,6 +314,7 @@ impl<C: Clock> Engine<C> {
         self.paused = false;
         self.groups.clear();
         self.ended_at.clear();
+        self.playhead = Playhead::Unset;
     }
 
     // ---- voortgang ---------------------------------------------------

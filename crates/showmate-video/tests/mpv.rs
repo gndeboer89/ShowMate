@@ -292,3 +292,36 @@ fn video_audio_is_on_by_default_and_can_be_muted() {
     let ratio = quiet / on;
     assert!((0.2..0.32).contains(&ratio), "-12 dB ≈ 0.25×, was {ratio}");
 }
+
+#[test]
+fn startup_failure_explains_why_and_is_fast() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut out = VideoOutput::new(VideoConfig {
+        // Een optie die mpv niet kent, zoals bij een andere mpv-versie: mpv sluit meteen af.
+        extra_args: vec!["--vo=null".into(), "--bestaat-niet-in-mpv=1".into()],
+        ..VideoConfig::default()
+    });
+    if out.mpv().is_err() {
+        eprintln!("mpv niet gevonden: test overgeslagen");
+        return;
+    }
+    let start = Instant::now();
+    out.start(1, &[0], Path::new(TEST_SRC), false, VideoAudio::default())
+        .unwrap();
+    let events = wait_for(&mut out, 8, |e| e.contains(&VideoEvent::Ended { cue: 1 }));
+    let msg = events
+        .iter()
+        .find_map(|e| match e {
+            VideoEvent::Error { message, .. } => Some(message.clone()),
+            _ => None,
+        })
+        .expect("foutmelding verwacht");
+    assert!(
+        msg.contains("bestaat-niet-in-mpv"),
+        "melding noemt de oorzaak niet: {msg}"
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "moet snel falen, niet na de 10 s time-out"
+    );
+}

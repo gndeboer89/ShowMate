@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -58,7 +59,7 @@ impl Player {
             .arg("--idle=yes")
             .arg("--force-window=no")
             .arg("--keep-open=no")
-            .arg("--no-terminal")
+            .arg("--msg-level=all=warn")
             .arg("--volume-max=200")
             .arg("--osc=no")
             .arg("--osd-level=0")
@@ -66,7 +67,6 @@ impl Player {
             .arg("--input-vo-keyboard=no")
             .arg("--no-input-cursor")
             .arg("--cursor-autohide=always")
-            .arg("--background=#000000")
             .arg("--hwdec=auto-safe")
             .arg("--screenshot-format=jpeg")
             .arg("--screenshot-jpeg-quality=60")
@@ -84,19 +84,27 @@ impl Player {
         cmd.args(&cfg.extra_args)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: geen consolevenster
         }
-        let child = cmd
+        let mut child = cmd
             .spawn()
             .map_err(|e| format!("kan {} niet starten: {e}", cfg.mpv.display()))?;
 
+        // mpv's foutmeldingen opvangen (en leeghalen, anders loopt de pipe vol): daarmee kunnen we
+        // uitleggen *waarom* er geen verbinding komt (bv. een optie die deze mpv-versie niet kent).
+        let diag = Arc::new(Diag::default());
+        if let Some(stderr) = child.stderr.take() {
+            let diag = diag.clone();
+            std::thread::spawn(move || diag.drain(stderr));
+        }
+
         let writer = Arc::new(Mutex::new(Writer::default()));
         let (w, ep, display) = (writer.clone(), endpoint.clone(), cfg.display);
-        std::thread::spawn(move || connect_and_pump(&ep, display, &w, &events));
+        std::thread::spawn(move || connect_and_pump(&ep, display, &w, &events, &diag));
         Ok(Self {
             child,
             writer,
@@ -181,23 +189,62 @@ impl Drop for Player {
     }
 }
 
+/// Wat mpv op stderr meldt, en of het proces al is gestopt.
+#[derive(Default)]
+struct Diag {
+    text: Mutex<String>,
+    exited: AtomicBool,
+}
+
+impl Diag {
+    fn drain(&self, stderr: impl std::io::Read) {
+        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            let mut t = self.text.lock().expect("diag-lock");
+            if t.len() < 1500 {
+                t.push_str(line.trim());
+                t.push('\n');
+            }
+        }
+        self.exited.store(true, Ordering::SeqCst);
+    }
+
+    fn has_exited(&self) -> bool {
+        self.exited.load(Ordering::SeqCst)
+    }
+
+    /// Toelichting voor in een foutmelding.
+    fn hint(&self) -> String {
+        let t = self.text.lock().expect("diag-lock");
+        let lines: Vec<&str> = t.lines().filter(|l| !l.is_empty()).take(3).collect();
+        match (lines.is_empty(), self.has_exited()) {
+            (false, _) => format!(" — mpv meldt: {}", lines.join(" | ")),
+            (true, true) => " — mpv is direct gestopt (zonder melding)".into(),
+            (true, false) => String::new(),
+        }
+    }
+}
+
 fn connect_and_pump(
     endpoint: &str,
     display: usize,
     writer: &Mutex<Writer>,
     events: &Sender<(usize, PlayerEvent)>,
+    diag: &Diag,
 ) {
     let exited = |why: String| {
         let _ = events.send((display, PlayerEvent::Exited(why)));
     };
+    let give_up = || diag.has_exited();
     let (write_stream, mut read_stream) = match (
-        ipc::connect(endpoint, CONNECT_TIMEOUT),
-        ipc::connect(endpoint, CONNECT_TIMEOUT),
+        ipc::connect(endpoint, CONNECT_TIMEOUT, give_up),
+        ipc::connect(endpoint, CONNECT_TIMEOUT, give_up),
     ) {
         (Ok(w), Ok(r)) => (w, r),
         (Err(e), _) | (_, Err(e)) => {
             writer.lock().expect("writer-lock").broken = true;
-            return exited(format!("geen verbinding met mpv: {e}"));
+            // Even wachten zodat de laatste stderr-regels binnen zijn.
+            std::thread::sleep(Duration::from_millis(150));
+            return exited(format!("geen verbinding met mpv: {e}{}", diag.hint()));
         }
     };
 

@@ -108,6 +108,13 @@ fn main() -> Result<(), slint::PlatformError> {
     wire!(on_open_recent, |st, i: i32| st.open_recent(i));
     wire!(on_browse_media, |st| st.browse_media());
     wire!(on_copy_media_toggled, |st, v: bool| st.set_copy_media(v));
+    wire!(on_video_fullscreen_toggled, |st, v: bool| st
+        .video_fullscreen_toggled(v));
+    wire!(on_video_screen_selected, |st, d: i32, m: i32| st
+        .video_screen_selected(d, m));
+    wire!(on_mpv_path_edited, |st, v: slint::SharedString| st
+        .mpv_path_edited(&v));
+    wire!(on_browse_mpv, |st| st.browse_mpv());
     wire!(on_edit_mute, |st, v: bool| st.edit_mute(v));
     wire!(on_edit_osc_dest, |st, v: slint::SharedString| st
         .edit_osc_dest(&v));

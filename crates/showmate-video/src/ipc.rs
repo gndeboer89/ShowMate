@@ -41,13 +41,18 @@ fn connect_once(endpoint: &str) -> io::Result<Stream> {
     }
 }
 
-/// Wacht tot mpv zijn IPC-server heeft aangemaakt en verbindt.
-pub fn connect(endpoint: &str, timeout: Duration) -> io::Result<Stream> {
+/// Wacht tot mpv zijn IPC-server heeft aangemaakt en verbindt. Stopt eerder als `give_up()`
+/// `true` geeft (bv. omdat het mpv-proces al is afgesloten).
+pub fn connect(
+    endpoint: &str,
+    timeout: Duration,
+    give_up: impl Fn() -> bool,
+) -> io::Result<Stream> {
     let start = Instant::now();
     loop {
         match connect_once(endpoint) {
             Ok(s) => return Ok(s),
-            Err(e) if start.elapsed() >= timeout => return Err(e),
+            Err(e) if start.elapsed() >= timeout || give_up() => return Err(e),
             Err(_) => std::thread::sleep(Duration::from_millis(25)),
         }
     }

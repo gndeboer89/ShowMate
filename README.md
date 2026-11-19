@@ -69,13 +69,19 @@ decoder-crash legt de show niet plat). Zet `mpv.exe` (van mpv.io / shinchiro-bui
   het venster verschijnt bij de eerste videocue en blijft zwart staan na afloop.
   STOP stopt de beelden en sluit de uitvoervensters.
 - Preview rechtsonder: ~2,5×/s een screenshot van het actieve scherm.
-- Standaard draait de uitvoer in een gewoon venster. Voor een projector: `settings.json` naast de showfile:
+- Standaard draait de uitvoer in een gewoon venster. **Schermen instellen: ⚙ Instellingen → Video (schermen)**: vink
+  *volledig scherm* aan en kies per display (Display 1…4) op welke monitor het komt; daar staat ook het pad naar mpv.
+  Wijzigingen gelden na *Opslaan en sluiten* (de spelers worden dan opnieuw gestart). Handmatig kan ook in `settings.json`:
 
 ```json
 { "video": { "fullscreen": true, "screens": [1, 2], "extra_args": ["--hwdec=auto"] } }
 ```
 
-`screens[n]` is de monitor-index (0 = eerste monitor) voor Display n+1. `SHOWMATE_FULLSCREEN=1` en
+`screens[n]` is de monitor-index (0 = eerste monitor) voor Display n+1.
+
+**Foutmelding "geen verbinding met mpv"**: mpv is gestart maar meteen weer gestopt of kon zijn besturingskanaal niet openen.
+De melding noemt nu de reden die mpv zelf geeft (bv. een optie die jouw mpv-versie niet kent). Controleer in ⚙ Instellingen
+het pad naar mpv en probeer `mpv.exe --version`. `SHOWMATE_FULLSCREEN=1` en
 `SHOWMATE_MPV_ARGS` overschrijven dit.
 
 Beperkingen: opstartlatentie van een videocue is ~50–200 ms (geen pre-roll); mpv-processen worden
@@ -101,6 +107,15 @@ Argumenten schrijf je als tekst: `f:0.7 5 true "tekst"`. Zonder prefix wordt het
 Overgangen (bv. spots 0 → 70% in 5 s) doet de tafel zelf: ShowMate stuurt één bericht bij de start van
 de cue. De knop **▶ Test** bij een OSC/MIDI-cue verstuurt het bericht meteen, zonder de show te starten.
 MIDI-cues ondersteunen Note On/Off, Control Change en Program Change (kanaal 1–16).
+
+## GO en de playhead
+
+De cue die de volgende **GO** (of `Spatie`) start is de *playhead*; die staat bovenin bij *Volgende cue* en heeft een
+groene balk in de lijst. **Klik op een cue om hem klaar te zetten**: de volgende GO start precies die cue, ook als hij
+al gespeeld is (dan start hij opnieuw, inclusief zijn auto-follow keten; bij een groep beginnen de kinderen opnieuw) of
+ver verderop in de lijst staat. Na een GO schuift de playhead door naar de cue na het afgevuurde blok. Een cue die nog
+loopt wordt niet nog eens gestart. Na STOP staat de playhead weer op de cue die was geannuleerd. Een klik op een kind
+van een groep zet de groep zelf klaar.
 
 ## Shows en bestanden
 
