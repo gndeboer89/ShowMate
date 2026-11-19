@@ -1,5 +1,6 @@
 //! UI-staat naast de engine: selectie, bestandspad, rij-model en inspector-vulling.
 
+mod files;
 mod io;
 mod shortcuts;
 mod workflow;
@@ -11,9 +12,8 @@ use showmate_audio::{
     AudioClip, AudioOutput, ClipCache, ClipStatus, VoiceParams, parse_output_pair,
 };
 use showmate_core::{
-    Cue, CueId, CueKind, CueState, EditError, Engine, Event, GroupMode, Show, StartMode,
-    SystemClock, demo::demo_show, format_delay, format_duration, format_timecode, parse_db,
-    parse_duration,
+    Cue, CueId, CueKind, CueState, EditError, Engine, Event, GroupMode, StartMode, SystemClock,
+    demo::demo_show, format_delay, format_duration, format_timecode, parse_db, parse_duration,
 };
 use showmate_io::{MidiOut, OscSender};
 use showmate_video::{VideoAudio, VideoEvent, VideoOutput, parse_displays};
@@ -44,6 +44,8 @@ pub struct AppState {
     cache: ClipCache,
     meter: (f32, f32),
     wave_cue: Option<CueId>,
+    /// Golfvorm leegmaken (na wisselen van show; cue-id's beginnen per show opnieuw bij 1).
+    wave_reset: bool,
     video: VideoOutput,
     video_info: String,
     video_durations: HashMap<CueId, Duration>,
@@ -51,7 +53,9 @@ pub struct AppState {
     preview_slot: usize,
     preview_shown: bool,
     settings: Settings,
-    settings_dir: PathBuf,
+    /// Map met `settings.json` (los van de geopende show).
+    app_dir: PathBuf,
+    copies: Vec<files::PendingCopy>,
     osc: OscSender,
     midi: Option<MidiOut>,
     midi_ports: Vec<String>,
@@ -75,15 +79,16 @@ pub struct AppState {
 /// Fallback-samplerate voor de cache als er geen audio-apparaat is.
 const FALLBACK_RATE: u32 = 48_000;
 
-/// `SHOWMATE_FILE`, anders `%APPDATA%\ShowMate\show.showmate`, anders `./show.showmate`.
-fn default_path() -> PathBuf {
+/// Welke show bij het starten opent: `SHOWMATE_FILE` (ontwikkeling), anders de laatst geopende
+/// (als die nog bestaat), anders `show.showmate` in de programmamap.
+fn startup_path(settings: &Settings, app_dir: &Path) -> PathBuf {
     if let Some(p) = std::env::var_os("SHOWMATE_FILE") {
         return p.into();
     }
-    if let Some(dir) = std::env::var_os("APPDATA").or_else(|| std::env::var_os("XDG_DATA_HOME")) {
-        return PathBuf::from(dir).join("ShowMate").join("show.showmate");
+    if let Some(last) = settings.last_show.as_ref().filter(|p| p.is_file()) {
+        return last.clone();
     }
-    PathBuf::from("show.showmate")
+    app_dir.join("show.showmate")
 }
 
 fn kind_label(kind: CueKind) -> &'static str {
@@ -137,21 +142,16 @@ fn plain_secs(d: Duration) -> String {
 
 impl AppState {
     pub fn open_default() -> Self {
-        let path = default_path();
+        let app_dir = crate::settings::app_dir();
+        let (settings, settings_msg) = crate::settings::load(&app_dir);
+        let path = startup_path(&settings, &app_dir);
         let mut message = String::new();
         let mut recovered = false;
-        let loaded = match showmate_core::recoverable_autosave(&path) {
-            Some(auto) => match Show::load(&auto) {
-                Ok(show) => {
-                    recovered = true;
-                    Ok(show)
-                }
-                Err(_) => Show::load(&path),
-            },
-            None => Show::load(&path),
-        };
-        let show = match loaded {
-            Ok(show) => show,
+        let show = match files::load_with_recovery(&path) {
+            Ok((show, rec)) => {
+                recovered = rec;
+                show
+            }
             Err(showmate_core::ShowError::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => {
                 demo_show()
             }
@@ -181,26 +181,11 @@ impl AppState {
             }
             Err(e) => (None, t!("geen audio: {e}", "no audio: {e}")),
         };
-        let settings_dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
-        let (settings, settings_msg) = crate::settings::load(&settings_dir);
-        let mut video = VideoOutput::new(settings.video.to_config());
+        let video = VideoOutput::new(settings.video.to_config());
         let video_info = match video.mpv() {
             Ok(p) => format!("mpv: {}", p.display()),
             Err(e) => e.to_string(),
         };
-        let mut warm: Vec<usize> = show
-            .cues
-            .iter()
-            .filter(|c| c.kind == CueKind::Video)
-            .flat_map(|c| parse_displays(&c.output))
-            .collect();
-        warm.sort_unstable();
-        warm.dedup();
-        if let Err(e) = video.warm(&warm)
-            && video.mpv().is_ok()
-        {
-            message = e;
-        }
         if let Some(m) = settings_msg {
             message = m;
         }
@@ -228,6 +213,7 @@ impl AppState {
             cache,
             meter: (0.0, 0.0),
             wave_cue: None,
+            wave_reset: false,
             video,
             video_info,
             video_durations: HashMap::new(),
@@ -235,7 +221,8 @@ impl AppState {
             preview_slot: 0,
             preview_shown: false,
             settings,
-            settings_dir,
+            app_dir,
+            copies: Vec::new(),
             osc: OscSender::new(),
             midi: None,
             midi_ports: Vec::new(),
@@ -256,10 +243,34 @@ impl AppState {
         };
         state.preload_all();
         state.connect_midi();
+        if state.message.is_empty()
+            && let Some(e) = state.warm_video()
+        {
+            state.message = e;
+        }
         state
     }
 
     // ---- media -----------------------------------------------------
+
+    /// Start vast de (onzichtbare) mpv-spelers voor de schermen die de show gebruikt.
+    /// Geeft een foutmelding terug als dat niet lukt terwijl mpv wel gevonden is.
+    pub(super) fn warm_video(&mut self) -> Option<String> {
+        let mut displays: Vec<usize> = self
+            .engine
+            .show()
+            .cues
+            .iter()
+            .filter(|c| c.kind == CueKind::Video)
+            .flat_map(|c| parse_displays(&c.output))
+            .collect();
+        displays.sort_unstable();
+        displays.dedup();
+        match self.video.warm(&displays) {
+            Err(e) if self.video.mpv().is_ok() => Some(e),
+            _ => None,
+        }
+    }
 
     /// Relatieve paden gelden t.o.v. de map van de showfile (ook de submap `media`).
     fn resolve_media(&self, media: &str) -> PathBuf {
@@ -683,6 +694,7 @@ impl AppState {
         let events = self.engine.tick();
         self.handle_events(events);
         self.maybe_autosave();
+        self.poll_copies();
         if let Some(a) = self.audio.as_mut() {
             a.drain_ended();
             let (l, r) = a.take_peaks();
@@ -930,6 +942,10 @@ impl AppState {
 
     /// Golfvorm en voortgang van de actieve (anders de geselecteerde) audio-cue.
     fn refresh_wave(&mut self, ui: &MainWindow) {
+        if std::mem::take(&mut self.wave_reset) {
+            self.wave_cue = None;
+            ui.set_wave_commands("".into());
+        }
         let cues = &self.engine.show().cues;
         let active = (0..cues.len()).find(|&i| {
             cues[i].kind == CueKind::Audio

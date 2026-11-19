@@ -342,3 +342,35 @@ msgstr "Default"
 msgctxt "MainWindow"
 msgid "Alles op standaard"
 msgstr "Reset all to default"
+
+msgctxt "MainWindow"
+msgid "📁 Bestand"
+msgstr "📁 File"
+
+msgctxt "MainWindow"
+msgid "Nieuwe show…"
+msgstr "New show…"
+
+msgctxt "MainWindow"
+msgid "Show openen…"
+msgstr "Open show…"
+
+msgctxt "MainWindow"
+msgid "Opslaan"
+msgstr "Save"
+
+msgctxt "MainWindow"
+msgid "Opslaan als…"
+msgstr "Save as…"
+
+msgctxt "MainWindow"
+msgid "Recent"
+msgstr "Recent"
+
+msgctxt "MainWindow"
+msgid "Bladeren…"
+msgstr "Browse…"
+
+msgctxt "MainWindow"
+msgid "Bestanden kopiëren naar de media-map van de show"
+msgstr "Copy files to the show's media folder"

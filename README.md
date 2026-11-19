@@ -102,6 +102,23 @@ Overgangen (bv. spots 0 → 70% in 5 s) doet de tafel zelf: ShowMate stuurt éé
 de cue. De knop **▶ Test** bij een OSC/MIDI-cue verstuurt het bericht meteen, zonder de show te starten.
 MIDI-cues ondersteunen Note On/Off, Control Change en Program Change (kanaal 1–16).
 
+## Shows en bestanden
+
+- **📁 Bestand** (of `Ctrl+N` / `Ctrl+O` / `Ctrl+Shift+S`): nieuwe show, openen, opslaan, opslaan als en een lijst met
+  recent geopende shows. Bij het starten opent ShowMate de laatst gebruikte show. Een show is één `.showmate`-bestand;
+  hij heeft zijn eigen map met een submap `media`.
+- **Niet-opgeslagen wijzigingen**: bij nieuw/openen vraagt ShowMate of je eerst wilt opslaan.
+- **Opslaan als** in een andere map neemt de mediabestanden die relatief bij de show horen mee.
+- **Audio of video toevoegen**:
+  - selecteer een audio- of videocue en klik **Bladeren…** naast *Media / doel*, of
+  - **sleep bestanden** (mp3, wav, flac, ogg, m4a, aac, mp4, mov, mkv, avi, webm, …) op het venster: ze worden nieuwe
+    cues onder de geselecteerde cue. Sleep je een `.showmate`-bestand, dan wordt die show geopend.
+- **Kopiëren naar de media-map** (standaard aan, uit te zetten in ⚙ Instellingen): het bestand wordt op de achtergrond
+  naar `<showmap>\media` gekopieerd en de cue bewaart alleen de bestandsnaam. Zo kun je de showmap meenemen naar een
+  andere computer. Bij een naamconflict met een ander bestand wordt `naam (2).ext` gebruikt; staat hetzelfde bestand er al,
+  dan wordt dat hergebruikt. Uitgeschakeld bewaart de cue het volledige pad.
+- Instellingen (`settings.json`) staan in `%APPDATA%\ShowMate` en gelden voor alle shows.
+
 ## Groepen
 
 Een groep is een cue met de cues eronder als kinderen (ingesprongen in de lijst). Er zijn drie soorten:
@@ -138,6 +155,9 @@ de actie die hem heeft. *Wis* maakt een actie toetsloos, *Standaard* zet hem ter
 | `Ctrl+Z` / `Ctrl+Y` | ongedaan maken / opnieuw (ook `Ctrl+Shift+Z`) |
 | `Ctrl+D` | cue dupliceren |
 | `Ctrl+S` | opslaan |
+| `Ctrl+Shift+S` | opslaan als… |
+| `Ctrl+N` | nieuwe show… |
+| `Ctrl+O` | show openen… |
 | `Delete` | cue verwijderen |
 | `↑` `↓` | vorige / volgende cue selecteren |
 

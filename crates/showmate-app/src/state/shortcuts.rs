@@ -59,6 +59,9 @@ impl AppState {
             Action::Redo => self.redo(),
             Action::Duplicate => self.duplicate_selected(),
             Action::Save => self.save(),
+            Action::NewShow => self.new_show(),
+            Action::OpenShow => self.open_show_dialog(),
+            Action::SaveAs => self.save_as(),
             Action::Delete => self.remove_selected(),
             Action::SelectPrev => {
                 let i = self.selected.map_or(0, |i| i.saturating_sub(1));

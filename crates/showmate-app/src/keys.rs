@@ -21,9 +21,12 @@ pub enum Action {
     Delete,
     SelectPrev,
     SelectNext,
+    NewShow,
+    OpenShow,
+    SaveAs,
 }
 
-pub const ALL: [Action; 12] = [
+pub const ALL: [Action; 15] = [
     Action::Go,
     Action::Pause,
     Action::Stop,
@@ -36,6 +39,9 @@ pub const ALL: [Action; 12] = [
     Action::Delete,
     Action::SelectPrev,
     Action::SelectNext,
+    Action::NewShow,
+    Action::OpenShow,
+    Action::SaveAs,
 ];
 
 impl Action {
@@ -54,6 +60,9 @@ impl Action {
             Action::Delete => "delete",
             Action::SelectPrev => "select_prev",
             Action::SelectNext => "select_next",
+            Action::NewShow => "new_show",
+            Action::OpenShow => "open_show",
+            Action::SaveAs => "save_as",
         }
     }
 
@@ -71,6 +80,9 @@ impl Action {
             Action::Delete => "Delete",
             Action::SelectPrev => "Up",
             Action::SelectNext => "Down",
+            Action::NewShow => "Ctrl+N",
+            Action::OpenShow => "Ctrl+O",
+            Action::SaveAs => "Ctrl+Shift+S",
         }
     }
 
@@ -91,6 +103,9 @@ impl Action {
             Action::Delete => tr("Cue verwijderen", "Delete cue"),
             Action::SelectPrev => tr("Vorige cue selecteren", "Select previous cue"),
             Action::SelectNext => tr("Volgende cue selecteren", "Select next cue"),
+            Action::NewShow => tr("Nieuwe show…", "New show…"),
+            Action::OpenShow => tr("Show openen…", "Open show…"),
+            Action::SaveAs => tr("Opslaan als…", "Save as…"),
         }
     }
 }

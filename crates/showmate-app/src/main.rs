@@ -2,7 +2,9 @@
 
 #[macro_use]
 mod i18n;
+mod dialogs;
 mod keys;
+mod media;
 mod settings;
 mod state;
 
@@ -100,6 +102,12 @@ fn main() -> Result<(), slint::PlatformError> {
     wire!(on_panic, |st| st.panic_stop());
     wire!(on_reset_show, |st| st.reset_show());
     wire!(on_edit_group_mode, |st, i: i32| st.edit_group_mode(i));
+    wire!(on_file_new, |st| st.new_show());
+    wire!(on_file_open, |st| st.open_show_dialog());
+    wire!(on_file_save_as, |st| st.save_as());
+    wire!(on_open_recent, |st, i: i32| st.open_recent(i));
+    wire!(on_browse_media, |st| st.browse_media());
+    wire!(on_copy_media_toggled, |st, v: bool| st.set_copy_media(v));
     wire!(on_edit_mute, |st, v: bool| st.edit_mute(v));
     wire!(on_edit_osc_dest, |st, v: slint::SharedString| st
         .edit_osc_dest(&v));
@@ -134,6 +142,39 @@ fn main() -> Result<(), slint::PlatformError> {
         .edit_delay(&v));
     wire!(on_edit_duration, |st, v: slint::SharedString| st
         .edit_duration(&v));
+
+    // Bestanden die op het venster worden gesleept (winit-gebeurtenis; Slint heeft hier geen eigen API voor).
+    {
+        use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
+        let (weak, app) = (ui.as_weak(), app.clone());
+        ui.window().on_winit_window_event(move |_, event| {
+            if let WindowEvent::DroppedFile(path) = event
+                && let Some(ui) = weak.upgrade()
+            {
+                let mut st = app.borrow_mut();
+                st.add_dropped_files(vec![path.clone()]);
+                st.after_edit(&ui);
+            }
+            EventResult::Propagate
+        });
+    }
+
+    // Alleen voor tests: simuleert het slepen van bestanden (`SHOWMATE_TEST_DROP=pad1;pad2`).
+    if let Ok(list) = std::env::var("SHOWMATE_TEST_DROP") {
+        let (weak, app) = (ui.as_weak(), app.clone());
+        Timer::single_shot(Duration::from_millis(1500), move || {
+            if let Some(ui) = weak.upgrade() {
+                let mut st = app.borrow_mut();
+                let paths = list
+                    .split(';')
+                    .filter(|p| !p.is_empty())
+                    .map(Into::into)
+                    .collect();
+                st.add_dropped_files(paths);
+                st.after_edit(&ui);
+            }
+        });
+    }
 
     // Bij afsluiten niet-opgeslagen werk bewaren (wordt bij de volgende start hersteld).
     {

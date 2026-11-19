@@ -146,6 +146,8 @@ export component MainWindow inherits Window {
     in property <bool> midi-ok: true;
     in property <[string]> dest-names;
     in property <[string]> cmd-names;
+    in property <[string]> recent;
+    in-out property <bool> copy-media: true;
 
     // Instellingenvenster
     in property <bool> settings-open;
@@ -180,6 +182,12 @@ export component MainWindow inherits Window {
     callback edit-duration(string);
     callback edit-looping(bool);
     callback edit-mute(bool);
+    callback file-new();
+    callback file-open();
+    callback file-save-as();
+    callback open-recent(int);
+    callback browse-media();
+    callback copy-media-toggled(bool);
     callback key-event(string, bool, bool, bool, bool) -> bool;
     callback key-capture(int);
     callback key-clear(int);
@@ -271,7 +279,7 @@ export component MainWindow inherits Window {
                 ToolButton { text: @tr("Loop"); width: 66px; font: 14px; enabled: !root.locked; clicked => { root.add-cue("loop"); } }
                 Rectangle { horizontal-stretch: 1; }
                 ToolButton { text: @tr("⚙ Instellingen"); width: 136px; clicked => { root.open-settings(); } }
-                ToolButton { text: @tr("💾 Opslaan"); width: 110px; clicked => { root.save(); } }
+                ToolButton { text: @tr("📁 Bestand"); width: 120px; clicked => { file-popup.show(); } }
                 ToolButton { text: "↑"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-up(); } }
                 ToolButton { text: "↓"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.move-down(); } }
                 ToolButton { text: "🗑"; width: 44px; enabled: root.has-selection && !root.locked; clicked => { root.remove-cue(); } }
@@ -418,7 +426,9 @@ export component MainWindow inherits Window {
                             Field { label: @tr("Naam");
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-name; edited(t) => { root.edit-name(t); } } }
                             if root.insp-kind != "osc" && root.insp-kind != "midi" && root.insp-kind != "group": Field { label: @tr("Media / doel");
-                                LineEdit { enabled: root.has-selection; text <=> root.insp-media; edited(t) => { root.edit-media(t); } } }
+                                HorizontalLayout { spacing: 6px;
+                                    LineEdit { horizontal-stretch: 1; enabled: root.has-selection; text <=> root.insp-media; edited(t) => { root.edit-media(t); } }
+                                    ToolButton { text: @tr("Bladeren…"); width: 104px; height: 32px; font: 13px; enabled: root.has-selection; clicked => { root.browse-media(); } } } }
                             if root.insp-kind != "osc" && root.insp-kind != "midi" && root.insp-kind != "group": Field { label: @tr("Output");
                                 LineEdit { enabled: root.has-selection; text <=> root.insp-output; edited(t) => { root.edit-output(t); } } }
                             if root.insp-kind == "group": Field { label: @tr("Soort");
@@ -481,6 +491,37 @@ export component MainWindow inherits Window {
         }
     }
 
+    // Bestandsmenu
+    file-popup := PopupWindow {
+        x: root.width - 292px;
+        y: 156px;
+        width: 290px;
+        Rectangle {
+            background: #151c2a; border-radius: 8px; border-width: 1px; border-color: #3a4558;
+            VerticalLayout {
+                padding: 6px; spacing: 2px;
+                for item[i] in [@tr("Nieuwe show…"), @tr("Show openen…"), @tr("Opslaan"), @tr("Opslaan als…")]: Rectangle {
+                    height: 34px; border-radius: 5px;
+                    background: ptouch.has-hover ? #243049 : transparent;
+                    Text { x: 12px; text: item; color: white; font-size: 14px; vertical-alignment: center; }
+                    ptouch := TouchArea { clicked => {
+                        if (i == 0) { root.file-new(); }
+                        if (i == 1) { root.file-open(); }
+                        if (i == 2) { root.save(); }
+                        if (i == 3) { root.file-save-as(); }
+                    } }
+                }
+                if root.recent.length > 0: HorizontalLayout { padding-left: 12px; height: 22px; Text { text: @tr("Recent"); color: #9aa6ba; font-size: 12px; vertical-alignment: bottom; } }
+                for r[i] in root.recent: Rectangle {
+                    height: 30px; border-radius: 5px;
+                    background: rtouch.has-hover ? #243049 : transparent;
+                    Text { x: 12px; width: parent.width - 24px; text: r; color: #c5cee0; font-size: 13px; vertical-alignment: center; overflow: elide; }
+                    rtouch := TouchArea { clicked => { root.open-recent(i); } }
+                }
+            }
+        }
+    }
+
     // Instellingenvenster (over alles heen)
     if root.settings-open: Rectangle {
         background: #000000b0;
@@ -505,6 +546,7 @@ export component MainWindow inherits Window {
                         Text { text: "Taal / Language"; color: #c5cee0; font-size: 15px; font-weight: 700; }
                         HorizontalLayout { alignment: start; height: 34px;
                             ComboBox { width: 220px; model: ["Nederlands", "English"]; current-index <=> root.language-index; selected(v) => { root.language-selected(self.current-index); } } }
+                        CheckBox { text: @tr("Bestanden kopiëren naar de media-map van de show"); checked <=> root.copy-media; toggled => { root.copy-media-toggled(self.checked); } }
 
                         Text { text: @tr("OSC-bestemmingen (bv. lichttafel)"); color: #c5cee0; font-size: 15px; font-weight: 700; }
                         HorizontalLayout { spacing: 8px; padding-right: 48px; height: 22px;

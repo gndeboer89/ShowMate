@@ -28,9 +28,44 @@ pub struct Settings {
     /// Eigen sneltoetsen: actie → toets (bv. `"go": "Enter"`); alleen afwijkingen van de standaard.
     #[serde(default)]
     pub shortcuts: std::collections::BTreeMap<String, String>,
+    /// Laatst geopende show; wordt bij het starten weer geopend.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_show: Option<PathBuf>,
+    /// Recent geopende shows (nieuwste eerst).
+    #[serde(default)]
+    pub recent: Vec<PathBuf>,
+    /// Bestanden die je toevoegt kopiëren naar de map `media` naast de show.
+    #[serde(default = "default_true")]
+    pub copy_media: bool,
     /// Taal van de interface: `"nl"` (standaard) of `"en"`.
     #[serde(default = "default_language")]
     pub language: String,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Zet `path` bovenaan de lijst recente shows (zonder dubbelen, maximaal 8).
+pub fn push_recent(recent: &mut Vec<PathBuf>, path: &Path) {
+    recent.retain(|p| p != path);
+    recent.insert(0, path.to_path_buf());
+    recent.truncate(8);
+}
+
+/// Map voor instellingen en de standaardshow: de map van `SHOWMATE_FILE` (ontwikkeling),
+/// anders `%APPDATA%\ShowMate`, anders de huidige map.
+pub fn app_dir() -> PathBuf {
+    if let Some(p) = std::env::var_os("SHOWMATE_FILE") {
+        return Path::new(&p)
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default();
+    }
+    if let Some(dir) = std::env::var_os("APPDATA").or_else(|| std::env::var_os("XDG_DATA_HOME")) {
+        return PathBuf::from(dir).join("ShowMate");
+    }
+    PathBuf::new()
 }
 
 fn default_language() -> String {
@@ -100,6 +135,9 @@ impl Default for Settings {
             osc: OscSettings::default(),
             midi: MidiSettings::default(),
             shortcuts: Default::default(),
+            last_show: None,
+            recent: Vec::new(),
+            copy_media: true,
             language: default_language(),
         }
     }
@@ -175,6 +213,30 @@ mod tests {
             serde_json::from_str(r#"{"video":{"fullscreen":true,"screens":[1,2]}}"#).unwrap();
         assert!(s.video.fullscreen);
         assert_eq!(s.video.screens, vec![1, 2]);
+    }
+
+    #[test]
+    fn recent_list_is_unique_newest_first_and_capped() {
+        let mut r = Vec::new();
+        for i in 0..12 {
+            push_recent(&mut r, Path::new(&format!("s{i}.showmate")));
+        }
+        assert_eq!(r.len(), 8);
+        assert_eq!(r[0], Path::new("s11.showmate"));
+        push_recent(&mut r, Path::new("s5.showmate"));
+        assert_eq!(r[0], Path::new("s5.showmate"));
+        assert_eq!(
+            r.iter().filter(|p| *p == Path::new("s5.showmate")).count(),
+            1
+        );
+        assert_eq!(r.len(), 8);
+    }
+
+    #[test]
+    fn new_fields_default_for_old_settings_files() {
+        let s: Settings = serde_json::from_str(r#"{"language":"en"}"#).unwrap();
+        assert!(s.copy_media, "kopiëren staat standaard aan");
+        assert!(s.recent.is_empty() && s.last_show.is_none());
     }
 
     #[test]

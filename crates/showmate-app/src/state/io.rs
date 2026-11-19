@@ -233,7 +233,7 @@ impl AppState {
         self.osc.forget();
         self.connect_midi();
         self.settings_note.clear();
-        self.message = match settings::save(&self.settings_dir, &self.settings) {
+        self.message = match settings::save(&self.app_dir, &self.settings) {
             Ok(()) if self.midi_status.is_empty() => {
                 t!("Instellingen opgeslagen", "Settings saved")
             }
@@ -418,6 +418,8 @@ impl AppState {
     pub(super) fn fill_settings_ui(&self, ui: &MainWindow, rebuild_rows: bool) {
         let s = &self.settings;
         ui.set_settings_open(self.settings_open);
+        ui.set_copy_media(self.settings.copy_media);
+        ui.set_recent(strings(self.recent_labels()));
         ui.set_keys(ModelRc::new(VecModel::from(self.key_rows())));
         ui.set_language_index(i32::from(self.settings.language == "en"));
         ui.set_settings_note(self.settings_note.as_str().into());

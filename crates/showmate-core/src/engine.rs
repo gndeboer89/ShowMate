@@ -110,6 +110,11 @@ impl<C: Clock> Engine<C> {
         }
     }
 
+    /// Hernoemt de show (bv. na 'Opslaan als').
+    pub fn set_show_name(&mut self, name: impl Into<String>) {
+        self.show.name = name.into();
+    }
+
     /// Meldt de lengte van het media-bestand van een cue (bv. na het laden van audio).
     /// Wordt gebruikt zolang de cue geen eigen duur heeft en niet loopt.
     pub fn set_media_duration(&mut self, id: CueId, len: Duration) {
